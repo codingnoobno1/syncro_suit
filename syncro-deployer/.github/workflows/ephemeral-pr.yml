@@ -1,0 +1,34 @@
+name: Ephemeral Azure PR Environment Lifecycle
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write # Azure OIDC Federated Workload Identity (zero static secrets)
+  contents: read
+
+jobs:
+  ephemeral-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Setup Aegis CLI
+        working-directory: services/control-plane
+        run: |
+          uv venv .venv
+          uv pip install --python .venv/bin/python -e .
+      - name: Plan & Audit Ephemeral Env on Open/Sync
+        if: github.event.action != 'closed'
+        working-directory: services/control-plane
+        run: |
+          .venv/bin/aegis scan --project payments-core --target ../../infra/terraform
+          .venv/bin/aegis infra tf-plan --project payments-core --env "pr-${{ github.event.pull_request.number }}" --ttl-hours 4
+          .venv/bin/aegis rbac plan --rg "rg-aegis-payments-pr-${{ github.event.pull_request.number }}" --personas deployer,destroyer
+      - name: Quick Destroy Ephemeral Env on PR Close
+        if: github.event.action == 'closed'
+        working-directory: services/control-plane
+        run: |
+          TOKEN=$(.venv/bin/aegis destroy preview --env env-pr-412 | python3 -c "import sys, json; print(json.load(sys.stdin)['confirmation_token'])")
+          .venv/bin/aegis destroy execute --env env-pr-412 --confirm "$TOKEN" --kill-switch

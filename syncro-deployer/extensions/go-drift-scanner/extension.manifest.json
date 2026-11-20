@@ -1,0 +1,10 @@
+{
+  "id": "go-drift-scanner",
+  "name": "Go Concurrent Drift & K8s Posture Scanner",
+  "version": "0.1.0",
+  "language": "go",
+  "transport": "http",
+  "endpoint": "http://go-drift-scanner:9101",
+  "capabilities": ["drift-scan", "aks-posture", "high-throughput-telemetry"],
+  "subscribed_topics": ["aegis.infra.lifecycle"]
+}

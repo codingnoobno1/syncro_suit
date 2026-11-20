@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package aegisops.v1;
+
+option go_package = "github.com/aegisops/aegisops/contracts/gen/go/aegisops/v1;aegisopsv1";
+option java_multiple_files = true;
+option java_package = "io.aegisops.contracts.v1";
+
+// Polyglot Extension Service implemented by Go, TypeScript, Java, or Python plugins.
+service ExtensionService {
+  rpc GetManifest(Empty) returns (ExtensionManifest);
+  rpc HealthCheck(Empty) returns (HealthStatus);
+  rpc ExecuteHook(HookRequest) returns (HookResponse);
+}
+
+message Empty {}
+
+message ExtensionManifest {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string language = 4; // "go" | "typescript" | "java" | "python"
+  repeated string capabilities = 5; // e.g., "drift-scan", "policy-webhook", "siem-bridge"
+  repeated string subscribed_topics = 6; // Kafka topics consumed
+  string endpoint_url = 7;
+}
+
+message HealthStatus {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_HEALTHY = 1;
+    STATE_DEGRADED = 2;
+    STATE_UNHEALTHY = 3;
+  }
+  State state = 1;
+  string message = 2;
+  int64 uptime_seconds = 3;
+}
+
+message HookRequest {
+  string correlation_id = 1;
+  string project_id = 2;
+  string environment_id = 3;
+  string hook_name = 4; // e.g., "pre_deploy", "post_scan", "pre_destroy", "drift_check"
+  map<string, string> metadata = 5;
+  bytes payload_json = 6;
+}
+
+message Finding {
+  string rule_id = 1;
+  string severity = 2; // CRITICAL | HIGH | MEDIUM | LOW | INFO
+  string title = 3;
+  string resource = 4;
+  string remediation = 5;
+}
+
+message HookResponse {
+  bool allowed = 1;
+  string summary = 2;
+  repeated Finding findings = 3;
+  map<string, string> annotations = 4;
+}

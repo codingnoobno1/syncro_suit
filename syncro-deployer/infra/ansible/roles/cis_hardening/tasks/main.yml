@@ -1,0 +1,32 @@
+---
+- name: Harden SSH daemon configuration (CIS 5.2)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    validate: "sshd -t -f %s"
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries {{ cis_max_auth_tries | default(3) }}' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+  notify: Restart sshd
+
+- name: Enforce hardened kernel sysctl parameters (CIS 3.2/3.3)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { key: "net.ipv4.ip_forward", value: "0" }
+    - { key: "net.ipv4.conf.all.accept_redirects", value: "0" }
+    - { key: "net.ipv4.tcp_syncookies", value: "1" }
+    - { key: "kernel.randomize_va_space", value: "2" }
+
+- name: Ensure auditd is installed and enabled
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true
+  when: enable_auditd | default(true)

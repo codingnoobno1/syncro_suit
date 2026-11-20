@@ -1,0 +1,52 @@
+{
+  "vhosts": [{ "name": "aegis" }],
+  "exchanges": [
+    { "name": "aegis.jobs", "vhost": "aegis", "type": "topic", "durable": true },
+    { "name": "aegis.dlx", "vhost": "aegis", "type": "direct", "durable": true }
+  ],
+  "queues": [
+    {
+      "name": "jobs.quick-destroy",
+      "vhost": "aegis",
+      "durable": true,
+      "arguments": { "x-max-priority": 10, "x-dead-letter-exchange": "aegis.dlx", "x-dead-letter-routing-key": "dlq" }
+    },
+    {
+      "name": "jobs.security-scan",
+      "vhost": "aegis",
+      "durable": true,
+      "arguments": { "x-max-priority": 10, "x-dead-letter-exchange": "aegis.dlx", "x-dead-letter-routing-key": "dlq" }
+    },
+    {
+      "name": "jobs.terraform",
+      "vhost": "aegis",
+      "durable": true,
+      "arguments": { "x-max-priority": 10, "x-dead-letter-exchange": "aegis.dlx", "x-dead-letter-routing-key": "dlq" }
+    },
+    {
+      "name": "jobs.ansible",
+      "vhost": "aegis",
+      "durable": true,
+      "arguments": { "x-max-priority": 10, "x-dead-letter-exchange": "aegis.dlx", "x-dead-letter-routing-key": "dlq" }
+    },
+    {
+      "name": "jobs.k8s-launch",
+      "vhost": "aegis",
+      "durable": true,
+      "arguments": { "x-max-priority": 10, "x-dead-letter-exchange": "aegis.dlx", "x-dead-letter-routing-key": "dlq" }
+    },
+    {
+      "name": "jobs.dlq",
+      "vhost": "aegis",
+      "durable": true
+    }
+  ],
+  "bindings": [
+    { "source": "aegis.jobs", "vhost": "aegis", "destination": "jobs.quick-destroy", "destination_type": "queue", "routing_key": "destroy.*" },
+    { "source": "aegis.jobs", "vhost": "aegis", "destination": "jobs.security-scan", "destination_type": "queue", "routing_key": "scan.*" },
+    { "source": "aegis.jobs", "vhost": "aegis", "destination": "jobs.terraform", "destination_type": "queue", "routing_key": "terraform.*" },
+    { "source": "aegis.jobs", "vhost": "aegis", "destination": "jobs.ansible", "destination_type": "queue", "routing_key": "ansible.*" },
+    { "source": "aegis.jobs", "vhost": "aegis", "destination": "jobs.k8s-launch", "destination_type": "queue", "routing_key": "k8s.*" },
+    { "source": "aegis.dlx", "vhost": "aegis", "destination": "jobs.dlq", "destination_type": "queue", "routing_key": "dlq" }
+  ]
+}

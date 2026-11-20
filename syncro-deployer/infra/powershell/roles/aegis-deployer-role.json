@@ -1,0 +1,24 @@
+{
+  "Name": "AegisOps Scoped Deployer",
+  "IsCustom": true,
+  "Description": "Resource-group scoped infrastructure provisioner for AKS, VNet, Key Vault, and ACR. Explicitly denies RBAC mutations and lock deletion.",
+  "Actions": [
+    "Microsoft.Resources/subscriptions/resourceGroups/read",
+    "Microsoft.Network/virtualNetworks/*",
+    "Microsoft.Network/networkSecurityGroups/*",
+    "Microsoft.ContainerService/managedClusters/*",
+    "Microsoft.ContainerRegistry/registries/*",
+    "Microsoft.KeyVault/vaults/*",
+    "Microsoft.OperationalInsights/workspaces/*"
+  ],
+  "NotActions": [
+    "Microsoft.Authorization/*/write",
+    "Microsoft.Authorization/*/delete",
+    "Microsoft.Authorization/locks/delete"
+  ],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/${SUBSCRIPTION_ID}"
+  ]
+}

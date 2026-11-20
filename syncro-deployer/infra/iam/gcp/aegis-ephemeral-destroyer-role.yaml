@@ -1,0 +1,11 @@
+title: "AegisOps Ephemeral Destroyer"
+description: "Least-privilege GCP custom role strictly bound via IAM CEL condition to ephemeral AegisOps resources."
+stage: "GA"
+includedPermissions:
+  - compute.instances.delete
+  - compute.instances.get
+  - compute.firewalls.delete
+  - compute.subnetworks.delete
+  - compute.networks.delete
+  - container.clusters.delete
+  - storage.buckets.delete

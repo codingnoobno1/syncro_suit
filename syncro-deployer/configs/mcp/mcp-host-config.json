@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aegisops": {
+      "command": "aegis",
+      "args": ["mcp", "serve", "--transport", "stdio"],
+      "env": {
+        "AEGIS_MODE": "simulation",
+        "AEGIS_BROKER_BACKEND": "memory"
+      }
+    }
+  }
+}

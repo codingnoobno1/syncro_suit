@@ -1,0 +1,13 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+  - us-west-2
+  - eu-west-1
+filters:
+  tag:aegis:managed: "true"
+  instance-state-name: running
+keyed_groups:
+  - key: tags['aegis:ephemeral']
+    prefix: aws_ephemeral
+compose:
+  ansible_host: private_ip_address

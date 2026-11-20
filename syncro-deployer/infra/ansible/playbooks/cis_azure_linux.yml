@@ -1,0 +1,22 @@
+---
+- name: AegisOps CIS Azure Linux Baseline Hardening
+  hosts: all
+  become: true
+  vars:
+    cis_ssh_port: 22
+    cis_max_auth_tries: 3
+    enable_auditd: true
+  roles:
+    - role: cis_hardening
+  post_tasks:
+    - name: Emit AegisOps compliance marker
+      ansible.builtin.copy:
+        dest: /etc/aegisops-hardened.json
+        mode: "0644"
+        content: |
+          {
+            "benchmark": "CIS Azure Linux Level 1",
+            "applied_by": "aegisops-ansible",
+            "ssh_root_login": "disabled",
+            "auditd_enabled": true
+          }

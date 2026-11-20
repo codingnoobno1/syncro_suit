@@ -1,0 +1,15 @@
+apiVersion: v2
+name: aegisops
+description: Polyglot-extensible Azure DevSecOps Control Plane, MCP Host, Tri-Broker Fabric, and Quick Destruction Engine
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - devsecops
+  - azure
+  - mcp
+  - kafka
+  - rabbitmq
+  - redis
+  - opa
+  - terraform

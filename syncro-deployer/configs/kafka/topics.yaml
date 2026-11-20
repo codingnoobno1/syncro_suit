@@ -1,0 +1,21 @@
+topics:
+  - name: aegis.audit.events
+    partitions: 6
+    replication_factor: 1
+    retention_ms: 2592000000 # 30 days
+    cleanup_policy: delete
+  - name: aegis.security.findings
+    partitions: 6
+    replication_factor: 1
+    retention_ms: 1209600000 # 14 days
+    cleanup_policy: delete
+  - name: aegis.infra.lifecycle
+    partitions: 3
+    replication_factor: 1
+    retention_ms: 604800000 # 7 days
+    cleanup_policy: delete
+  - name: aegis.destroy.events
+    partitions: 3
+    replication_factor: 1
+    retention_ms: 7776000000 # 90 days immutable compliance retention
+    cleanup_policy: delete

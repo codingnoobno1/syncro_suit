@@ -1,0 +1,10 @@
+{
+  "id": "java-audit-bridge",
+  "name": "Java 17 Enterprise SIEM & Kafka Compliance Bridge",
+  "version": "0.1.0",
+  "language": "java",
+  "transport": "kafka",
+  "endpoint": "http://java-audit-bridge:9103",
+  "capabilities": ["siem-export", "soc2-evidence", "immutable-audit-sink"],
+  "subscribed_topics": ["aegis.audit.events", "aegis.destroy.events"]
+}

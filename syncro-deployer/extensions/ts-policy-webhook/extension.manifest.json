@@ -1,0 +1,10 @@
+{
+  "id": "ts-policy-webhook",
+  "name": "TypeScript PR & Admission Policy Webhook",
+  "version": "0.1.0",
+  "language": "typescript",
+  "transport": "http",
+  "endpoint": "http://ts-policy-webhook:9102",
+  "capabilities": ["pr-gate", "admission-webhook", "sarif-annotator"],
+  "subscribed_topics": ["aegis.security.findings"]
+}

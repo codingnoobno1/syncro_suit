@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegisops.dev/schemas/extension-manifest.schema.json",
+  "title": "AegisOps Polyglot Extension Manifest",
+  "type": "object",
+  "required": ["id", "name", "version", "language", "transport", "endpoint", "capabilities"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "version": { "type": "string" },
+    "language": { "enum": ["go", "typescript", "java", "python", "rust"] },
+    "transport": { "enum": ["http", "grpc", "kafka"] },
+    "endpoint": { "type": "string" },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "subscribed_topics": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

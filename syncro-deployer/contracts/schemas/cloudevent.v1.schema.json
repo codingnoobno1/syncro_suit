@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegisops.dev/schemas/cloudevent.v1.schema.json",
+  "title": "AegisOps CloudEvent v1.0",
+  "type": "object",
+  "required": ["id", "specversion", "type", "source", "time", "data"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "specversion": { "const": "1.0" },
+    "type": {
+      "type": "string",
+      "pattern": "^io\\.aegisops\\.[a-z0-9._-]+$"
+    },
+    "source": { "type": "string" },
+    "subject": { "type": "string" },
+    "time": { "type": "string", "format": "date-time" },
+    "datacontenttype": { "type": "string", "default": "application/json" },
+    "project_id": { "type": "string" },
+    "correlation_id": { "type": "string" },
+    "data": { "type": "object" }
+  }
+}

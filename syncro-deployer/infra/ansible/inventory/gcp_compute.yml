@@ -1,0 +1,13 @@
+plugin: google.cloud.gcp_compute
+projects:
+  - aegisops-devsecops-sim
+zones:
+  - us-central1-a
+  - europe-west1-b
+filters:
+  - labels.aegis_managed = true
+  - status = RUNNING
+hostnames:
+  - name
+compose:
+  ansible_host: networkInterfaces[0].networkIP

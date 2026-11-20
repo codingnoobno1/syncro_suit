@@ -1,0 +1,35 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/aegisops/control-plane
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+mode: simulation
+brokerBackend: memory
+
+brokers:
+  kafkaBootstrapServers: "aegis-kafka:9092"
+  rabbitmqUrl: "amqp://aegis@aegis-rabbitmq:5672/aegis"
+  redisUrl: "redis://aegis-redis:6379/0"
+
+azure:
+  workloadIdentityClientId: "00000000-0000-0000-0000-000000000000"
+  subscriptionId: "00000000-0000-0000-0000-000000000000"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false

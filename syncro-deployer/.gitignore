@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+coverage.xml
+htmlcov/
+
+# Node / TypeScript / Dashboard
+node_modules/
+apps/dashboard/dist/
+extensions/ts-policy-webhook/dist/
+*.tsbuildinfo
+
+# Go
+extensions/go-drift-scanner/bin/
+*.test
+
+# Java / Maven
+extensions/java-audit-bridge/target/
+
+# Terraform / Ansible / Secrets
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.env
+.env.local
+*.pem
+*.key
+*.retry
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Flutter Desktop Agent
+apps/syncro-desktop/.dart_tool/
+apps/syncro-desktop/build/
+apps/syncro-desktop/.flutter-plugins
+apps/syncro-desktop/.flutter-plugins-dependencies
+
+# SQLite WAL Runtime State
+*.db
+*.db-wal
+*.db-shm
+

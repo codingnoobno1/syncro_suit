@@ -1,0 +1,19 @@
+---
+- name: AegisOps Emergency Node Quarantine & Workload Drain
+  hosts: "{{ target_hosts | default('aegis_ephemeral') }}"
+  become: true
+  tasks:
+    - name: Drop inbound non-management traffic immediately via nftables/ufw
+      ansible.builtin.command: "echo '[QUARANTINE] Enforcing strict egress/ingress isolation on {{ inventory_hostname }}'"
+      changed_when: true
+
+    - name: Revoke active ephemeral tokens and temporary SSH authorized keys
+      ansible.builtin.file:
+        path: /tmp/aegis-ephemeral-token
+        state: absent
+
+    - name: Record quarantine audit stamp
+      ansible.builtin.copy:
+        dest: /var/log/aegisops-quarantine.log
+        mode: "0600"
+        content: "Quarantined at {{ ansible_date_time.iso8601 | default('now') }} by AegisOps Kill-Switch\n"

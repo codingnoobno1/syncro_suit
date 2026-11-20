@@ -1,0 +1,9 @@
+plugin: azure.azcollection.azure_rm
+auth_source: auto
+include_vm_resource_groups:
+  - "rg-aegis-*"
+conditional_groups:
+  aegis_ephemeral: "'aegis:ephemeral' in tags and tags['aegis:ephemeral'] == 'true'"
+  aks_nodes: "'aks-managed-poolName' in tags"
+hostvar_expressions:
+  ansible_host: private_ipv4_addresses | first

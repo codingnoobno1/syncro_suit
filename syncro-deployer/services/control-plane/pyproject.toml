@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegisops"
+version = "0.1.0"
+description = "Polyglot-extensible Azure DevSecOps Control Plane, CLI, MCP Host, and Ephemeral Infrastructure Engine"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [{ name = "AegisOps Contributors" }]
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "typer>=0.13.0",
+  "rich>=13.9.0",
+  "pyyaml>=6.0.2",
+  "httpx>=0.27.2",
+  "websockets>=13.1",
+]
+
+[project.optional-dependencies]
+live = [
+  "aiokafka>=0.11.0",
+  "aio-pika>=9.4.3",
+  "redis>=5.2.0",
+]
+dev = [
+  "pytest>=8.3.3",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.7.0",
+  "mypy>=1.13.0",
+  "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+aegis = "aegisops.cli.main:app"
+syncro = "aegisops.cli.main:app"
+aegis-mcp = "aegisops.mcp.server:run_stdio_entrypoint"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+ignore = ["S101", "S603", "S607", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S106"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package aegisops.v1;
+
+option go_package = "github.com/aegisops/aegisops/contracts/gen/go/aegisops/v1;aegisopsv1";
+option java_multiple_files = true;
+option java_package = "io.aegisops.contracts.v1";
+
+// Standardized CloudEvents-aligned telemetry record published to Apache Kafka.
+message AegisCloudEvent {
+  string id = 1;
+  string specversion = 2; // "1.0"
+  string type = 3;        // e.g., "io.aegisops.security.scan.completed"
+  string source = 4;      // e.g., "/aegisops/control-plane"
+  string subject = 5;     // e.g., "env/pr-412-aks"
+  string time = 6;        // RFC 3339 timestamp
+  string datacontenttype = 7;
+  string correlation_id = 8;
+  string project_id = 9;
+  string severity = 10;
+  bytes data_json = 11;
+}

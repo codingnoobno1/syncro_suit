@@ -1,0 +1,17 @@
+{
+  "Name": "AegisOps Auditor (Read-Only)",
+  "IsCustom": true,
+  "Description": "Least-privilege read-only DevSecOps compliance & Microsoft Defender assessment role.",
+  "Actions": [
+    "*/read",
+    "Microsoft.Security/*/read",
+    "Microsoft.PolicyInsights/*/read",
+    "Microsoft.Authorization/*/read"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/${SUBSCRIPTION_ID}"
+  ]
+}
