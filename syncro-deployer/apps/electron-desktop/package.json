@@ -3,7 +3,12 @@
   "productName": "Syncro Deployer",
   "version": "0.2.0",
   "description": "Syncro Deployer — Multi-Cloud DevSecOps Electron.js Desktop Workbench (AWS · GCP · Azure CLI MCP, Dual-Mode Deployer, VM FinOps & Guardrailed Ops Bot)",
-  "author": "Syncro Suite Team",
+  "homepage": "https://github.com/codingnoobno1/syncro_suit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codingnoobno1/syncro_suit.git"
+  },
+  "author": "Syncro Suite Team <ops@syncrosuite.io>",
   "license": "Apache-2.0",
   "main": "electron/main.js",
   "scripts": {

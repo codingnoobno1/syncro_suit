@@ -8,30 +8,51 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_DIR = path.resolve(__dirname, '..');
 
-test('Electron main and preload enforce contextIsolation, sandbox, and zero nodeIntegration', () => {
-  const mainSrc = fs.readFileSync(path.join(APP_DIR, 'electron', 'main.js'), 'utf8');
+test('Electron window-manager and preload enforce contextIsolation, sandbox, native materials, and multi-window popouts', () => {
+  const wmSrc = fs.readFileSync(path.join(APP_DIR, 'electron', 'window-manager.js'), 'utf8');
   const preloadSrc = fs.readFileSync(path.join(APP_DIR, 'electron', 'preload.js'), 'utf8');
+  const menuSrc = fs.readFileSync(path.join(APP_DIR, 'electron', 'menu.js'), 'utf8');
+  const ipcSrc = fs.readFileSync(path.join(APP_DIR, 'electron', 'ipc-handlers.js'), 'utf8');
 
-  assert.match(mainSrc, /contextIsolation:\s*true/);
-  assert.match(mainSrc, /nodeIntegration:\s*false/);
-  assert.match(mainSrc, /sandbox:\s*true/);
+  assert.match(wmSrc, /contextIsolation:\s*true/);
+  assert.match(wmSrc, /nodeIntegration:\s*false/);
+  assert.match(wmSrc, /sandbox:\s*true/);
+  assert.match(wmSrc, /backgroundMaterial:\s*'mica'/);
+  assert.match(wmSrc, /vibrancy:\s*'under-window'/);
+  assert.match(wmSrc, /openPopoutWindow\(/);
+  assert.match(wmSrc, /createSplashWindow\(/);
+  assert.ok(fs.existsSync(path.join(APP_DIR, 'electron', 'splash.html')));
+
   assert.match(preloadSrc, /contextBridge\.exposeInMainWorld\('syncroDesktop'/);
+  assert.match(preloadSrc, /openPopout:/);
+  assert.match(preloadSrc, /showContextMenu:/);
+  assert.match(preloadSrc, /selectFolder:/);
+  assert.match(menuSrc, /Menu\.setApplicationMenu/);
+  assert.match(ipcSrc, /syncro:open-popout/);
+  assert.match(ipcSrc, /syncro:context-menu/);
+  assert.match(ipcSrc, /syncro:select-folder/);
 });
 
-test('electron-builder.yml configures Windows (.exe), Linux (.AppImage/.tar.gz/.deb/.rpm), macOS (.dmg) and native libs', () => {
+test('package.json and electron-builder.yml configure Windows (.exe), Linux (.AppImage/.tar.gz/.deb/.rpm), macOS (.dmg) and native libs', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8'));
+  assert.ok(pkg.homepage && pkg.homepage.startsWith('https://'), 'package.json must set homepage for .deb/.rpm builds');
+
   const cfg = fs.readFileSync(path.join(APP_DIR, 'electron-builder.yml'), 'utf8');
   for (const token of ['nsis', 'portable', 'AppImage', 'tar.gz', 'deb', 'rpm', 'dmg', '*.so', '*.dll', '*.dylib']) {
     assert.ok(cfg.includes(token), `electron-builder.yml missing target/resource token: ${token}`);
   }
 });
 
-test('Vite renderer production build emits dist/index.html and JS/CSS assets', () => {
+test('Vite renderer production build emits 5-zone native IDE shell', () => {
   const distIndex = path.join(APP_DIR, 'dist', 'index.html');
   assert.ok(fs.existsSync(distIndex), 'dist/index.html must exist after npm run build');
   const html = fs.readFileSync(distIndex, 'utf8');
   assert.match(html, /Syncro Deployer/);
-  assert.match(html, /id="nav-cloud-cli"/);
-  assert.match(html, /id="nav-mcp"/);
+  assert.match(html, /id="activity-bar"/);
+  assert.match(html, /id="explorer-pane"/);
+  assert.match(html, /id="inspector-pane"/);
+  assert.match(html, /id="desktop-statusbar"/);
+  assert.match(html, /id="btn-popout-current"/);
 });
 
 test('Compiled native shared library (.so/.dylib) exports ABI symbols and blocks shell metacharacters', () => {

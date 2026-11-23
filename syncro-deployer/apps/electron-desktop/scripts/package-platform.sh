@@ -5,6 +5,7 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${APP_DIR}"
 
 OS="$(uname -s)"
+OS_LOWER="$(printf '%s' "${OS}" | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 VERSION="$(node -p "require('./package.json').version")"
 
@@ -28,7 +29,7 @@ else
 fi
 
 echo "==> [5/5] Creating standalone native + renderer platform bundle (.tar.gz) & SHA256SUMS..."
-BUNDLE_DIR="release/syncro-deployer-bundle-${OS,,}-${ARCH}"
+BUNDLE_DIR="release/syncro-deployer-bundle-${OS_LOWER}-${ARCH}"
 rm -rf "${BUNDLE_DIR}"
 mkdir -p "${BUNDLE_DIR}/native" "${BUNDLE_DIR}/renderer" "${BUNDLE_DIR}/electron"
 cp -r dist/* "${BUNDLE_DIR}/renderer/"
@@ -36,16 +37,25 @@ cp -r electron/* "${BUNDLE_DIR}/electron/"
 cp -r native/dist/* "${BUNDLE_DIR}/native/"
 cp package.json electron-builder.yml "${BUNDLE_DIR}/"
 
-TAR_NAME="syncro-deployer-${VERSION}-${OS,,}-${ARCH}-bundle.tar.gz"
+TAR_NAME="syncro-deployer-${VERSION}-${OS_LOWER}-${ARCH}-bundle.tar.gz"
 tar -czf "release/${TAR_NAME}" -C release "$(basename "${BUNDLE_DIR}")"
 rm -rf "${BUNDLE_DIR}"
 
-# Also copy standalone native shared library directly into release/ for direct artifact publishing
+# Copy standalone native shared library directly into release/ for direct artifact publishing
 cp native/dist/* release/
 
 (
   cd release
-  sha256sum *.tar.gz *.AppImage *.deb *.rpm *.dmg *.zip *.so *.dylib 2>/dev/null > SHA256SUMS.txt || true
+  if command -v sha256sum >/dev/null 2>&1; then
+    HASH_CMD=(sha256sum)
+  else
+    HASH_CMD=(shasum -a 256)
+  fi
+  shopt -s nullglob
+  FILES=( *.tar.gz *.AppImage *.deb *.rpm *.dmg *.zip *.so *.dylib )
+  if (( ${#FILES[@]} > 0 )); then
+    "${HASH_CMD[@]}" "${FILES[@]}" > SHA256SUMS.txt
+  fi
 )
 
 echo "==> Release artifacts ready in ${APP_DIR}/release:"

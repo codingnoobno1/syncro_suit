@@ -1,35 +1,36 @@
-# Syncro Deployer — Electron.js Desktop Workbench
+# Syncro Deployer — Native Multi-Window Electron.js Desktop App
 
-Cross-platform **Electron.js** desktop frontend for **Syncro Deployer / AegisOps**, engineered with a Swiss-Industrial Slate & Cerulean Titanium Vanilla CSS design system, secure `contextIsolation` preload bridge, automatic Control Plane sidecar lifecycle, and a native C99 shared library (`.so` / `.dll` / `.dylib`).
+Standalone native desktop application for **Syncro Deployer / AegisOps** (Windows, Linux, macOS) — built as a 5-zone desktop IDE/workbench with separate pop-out OS windows, Windows 11 Mica / macOS Vibrancy chrome, persistent window bounds, native OS menus & right-click context menus, automatic Python Control Plane sidecar lifecycle, and a compiled C99 native library (`.so` / `.dll` / `.dylib`).
 
-## Features
+## Native Desktop Capabilities
 
-- **Cloud CLI Studio (`az` · `gcloud` · `aws`)** — Interactive guardrailed runner invoking the backend's Azure, GCP, and AWS CLI wrappers via **MCP JSON-RPC 2.0** or **REST API**, with curated presets, dry-run preview, shell-injection/production-delete guardrail tests, and audited execution history.
-- **MCP Tool Console (34 Tools · 15 Resources · 6 Prompts)** — Live JSON-RPC 2.0 explorer for `POST /mcp`, including `aegis_az_cli`, `aegis_gcp_cli`, `aegis_aws_cli`, `aegis_cloud_cli_status`, and `aegis_cloud_cli_history`.
-- **Dual-Mode Syncro Deployer** — Switch seamlessly between **Agentic Mode** and **Manual DevOps Mode**, launch Canary/Blue-Green/Rolling releases, trigger SLO fault auto-rollback, and promote/rollback live.
-- **Multi-Cloud VM & FinOps Matrix** — Compare AWS EC2, GCP Shielded GCE, and Azure Confidential VMs side-by-side with live generated CIS Terraform HCL and 1-click provisioning.
-- **DevSecOps & Two-Phase Quick Destroy** — Run Checkov/Trivy/Bandit/tfsec/OPA scans, export SARIF via native OS save dialog, generate least-privilege IAM/PowerShell ABAC plans, and execute HMAC-confirmed teardowns.
-- **Guardrailed Ops Bot & Live WebSocket Stream** — Real-time Kafka/Redis event drawer, Prompt-Injection Firewall tester, and Bill-Saving Self-Prompt runner.
+- **True Multi-Window Architecture (`electron/window-manager.js`)**: Detach **Cloud CLI Studio**, **MCP Tool Console**, **Live Telemetry Monitor**, **Syncro Deployer**, **VM Matrix**, **DevSecOps**, or **Ops Bot** into independent OS windows (`Ctrl+N`, `Ctrl+Shift+M`, `Ctrl+Shift+T`, tray menu, or tab right-click), each with its own Always-on-Top pin (`Alt+Shift+P`).
+- **Native OS Integration**: Platform-native Application Menu (`File · Edit · View · Cloud · Window · Help`), native right-click `Menu.popup()`, native directory picker for local IaC scanning, native Save dialogs for SARIF/Terraform/PowerShell exports, system tray quick-launchers, native boot splash screen, and persistent multi-monitor window bounds.
+- **5-Zone Desktop IDE Ergonomics**:
+  1. Integrated Titlebar + Menu Bar + Command Palette (`Ctrl/Cmd+K`) + Layout Controls
+  2. 46px Activity Bar (`Ctrl+1..7`)
+  3. Resizable Explorer Tree (Projects, Multi-Cloud AWS/GCP/Azure Fleet, Cloud CLI Wrappers, Detached Windows)
+  4. Multi-Tab Workbench + Resizable Right Property Inspector (`Ctrl+Shift+I`)
+  5. 4-Tab Bottom Dock (`Live Stream` · `Quick Cloud CLI` · `Tri-Broker Fabric` · `Native Runtime`) + 24px Native Status Bar
 
-## Quick Start
+## Launch Directly as a Native Desktop Window (No Browser)
 
+### Windows (PowerShell)
+```powershell
+cd syncro-deployer\apps\electron-desktop
+.\scripts\launch-desktop.ps1
+```
+
+### Linux / macOS
 ```bash
-# 1. Start the Python Control Plane + Cloud CLI MCP Host (:8080)
-cd ../../services/control-plane
-uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
-.venv/bin/syncro server --host 127.0.0.1 --port 8080
-
-# 2. Install & launch Electron Desktop (second terminal)
-cd ../../apps/electron-desktop
-npm install
-npm run build
-npm start
+cd syncro-deployer/apps/electron-desktop
+bash scripts/launch-desktop.sh
 ```
 
 ## Platform Packaging (`.exe`, `.so`, `.AppImage`, `.deb`, `.rpm`, `.tar.gz`, `.dmg`)
 
 | Platform | Script | Output Artifacts |
 | :--- | :--- | :--- |
-| **Linux (x64)** | `bash scripts/package-platform.sh` | `.AppImage`, `.deb`, `.rpm`, `.tar.gz`, `libsyncro_native.so`, `SHA256SUMS.txt` |
-| **Windows (x64)** | `pwsh -File scripts/package-platform.ps1` | NSIS `.exe`, Portable `.exe`, `.zip`, `syncro_native.dll`, `SHA256SUMS.txt` |
-| **macOS (x64 / arm64)** | `bash scripts/package-platform.sh` | `.dmg`, `.zip`, `libsyncro_native.dylib`, `SHA256SUMS.txt` |
+| **Windows (`x64`)** | `pwsh -File scripts/package-platform.ps1` | NSIS `.exe`, Portable `.exe`, `.zip`, `syncro_native.dll`, `SHA256SUMS.txt` |
+| **Linux (`x64`)** | `bash scripts/package-platform.sh` | `.AppImage`, `.deb`, `.rpm`, `.tar.gz`, `libsyncro_native.so`, `SHA256SUMS.txt` |
+| **macOS (`x64` / `arm64`)** | `bash scripts/package-platform.sh` | `.dmg`, `.zip`, `.tar.gz`, `libsyncro_native.dylib`, `SHA256SUMS.txt` |

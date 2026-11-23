@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Syncro Deployer — Multi-Cloud DevSecOps &amp; Cloud CLI MCP Workbench</title>
+    <title>Syncro Deployer — Native Multi-Cloud DevSecOps Workbench</title>
     <meta
       name="description"
-      content="Syncro Deployer Electron desktop workbench uniting guardrailed Azure (az), GCP (gcloud), and AWS (aws) CLI MCP wrappers, dual-mode deployments, VM FinOps, and DevSecOps security gates."
+      content="Native multi-window Electron.js desktop workbench for Syncro Deployer with guardrailed Azure (az), GCP (gcloud), and AWS (aws) CLI MCP wrappers, dual-mode deployments, VM FinOps, and DevSecOps security gates."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,50 +18,78 @@
   </head>
   <body>
     <div id="app" class="desktop-frame">
-      <!-- Frameless Electron Titlebar / Top Command Chrome -->
+      <!-- Native Desktop Titlebar & Integrated Menu Bar -->
       <header class="titlebar" id="desktop-titlebar">
         <div class="titlebar-left">
-          <div class="brand-lockup">
+          <div class="brand-lockup" id="brand-lockup">
             <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
               <polygon points="16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-              <polygon points="16,8 22.5,11.8 22.5,20.2 16,24 9.5,20.2 9.5,11.8" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.2" />
+              <polygon points="16,8 22.5,11.8 22.5,20.2 16,24 9.5,20.2 9.5,11.8" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.2" />
               <circle cx="16" cy="16" r="2.6" fill="currentColor" />
             </svg>
-            <div class="brand-copy">
-              <span class="brand-name">Syncro Deployer</span>
-              <span class="brand-version" id="runtime-badge">Electron · v0.2.0</span>
-            </div>
+            <span class="brand-name" id="titlebar-app-name">Syncro Deployer</span>
           </div>
+
+          <nav class="app-menubar" id="app-menubar" aria-label="Application menu bar">
+            <button type="button" class="menubar-btn" data-menu="file" id="menu-file">File</button>
+            <button type="button" class="menubar-btn" data-menu="view" id="menu-view">View</button>
+            <button type="button" class="menubar-btn" data-menu="cloud" id="menu-cloud">Cloud CLI</button>
+            <button type="button" class="menubar-btn" data-menu="window" id="menu-window">Window</button>
+          </nav>
         </div>
 
         <div class="titlebar-center">
-          <button
-            type="button"
-            class="cmd-trigger"
-            id="btn-open-palette"
-            aria-label="Open quick command palette"
-          >
-            <span class="cmd-trigger-text">Jump to view, Cloud CLI preset, or MCP tool...</span>
+          <button type="button" class="cmd-trigger" id="btn-open-palette" aria-label="Open command palette">
+            <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="7" cy="7" r="4.8" />
+              <path d="M10.7 10.7L14 14" stroke-linecap="round" />
+            </svg>
+            <span class="cmd-trigger-text">Syncro Workbench — search commands, CLIs, or MCP tools...</span>
             <kbd class="kbd-hint">Ctrl K</kbd>
           </button>
         </div>
 
         <div class="titlebar-right">
           <div class="mode-switch" role="group" aria-label="Deployment execution mode">
-            <button type="button" class="mode-btn active" id="mode-btn-agentic" data-mode="agentic">
-              Agentic
+            <button type="button" class="mode-btn active" id="mode-btn-agentic" data-mode="agentic">Agentic</button>
+            <button type="button" class="mode-btn" id="mode-btn-manual" data-mode="manual">Manual</button>
+          </div>
+
+          <div class="chrome-tools" aria-label="Workspace layout and window actions">
+            <button type="button" class="icon-btn" id="btn-toggle-explorer" title="Toggle Explorer Sidebar (Ctrl+B)" aria-label="Toggle Explorer Sidebar">
+              <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+                <line x1="6" y1="2.5" x2="6" y2="13.5" />
+              </svg>
             </button>
-            <button type="button" class="mode-btn" id="mode-btn-manual" data-mode="manual">
-              Manual
+            <button type="button" class="icon-btn" id="btn-toggle-drawer" title="Toggle Bottom Dock (Ctrl+J)" aria-label="Toggle Bottom Dock">
+              <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+                <line x1="2" y1="10" x2="14" y2="10" />
+              </svg>
+            </button>
+            <button type="button" class="icon-btn" id="btn-toggle-inspector" title="Toggle Right Inspector (Ctrl+Shift+I)" aria-label="Toggle Right Inspector">
+              <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+                <line x1="10" y1="2.5" x2="10" y2="13.5" />
+              </svg>
+            </button>
+            <button type="button" class="icon-btn" id="btn-popout-current" title="Pop Out Active View into Separate Window" aria-label="Pop out current view">
+              <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <path d="M9.5 2.5H13.5V6.5" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M13.5 2.5L7.5 8.5" stroke-linecap="round" />
+                <path d="M12 9.5V12.5C12 13.05 11.55 13.5 11 13.5H3.5C2.95 13.5 2.5 13.05 2.5 12.5V5C2.5 4.45 2.95 4 3.5 4H6.5" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button type="button" class="icon-btn" id="btn-pin-window" title="Toggle Always On Top (Alt+Shift+P)" aria-label="Pin window on top">
+              <svg class="ico-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <path d="M5.5 2.5H10.5L9.5 7L12 9.5H4L6.5 7L5.5 2.5Z" stroke-linejoin="round" />
+                <line x1="8" y1="9.5" x2="8" y2="14" stroke-linecap="round" />
+              </svg>
             </button>
           </div>
 
-          <div class="conn-indicator" id="conn-indicator" title="Control Plane &amp; WebSocket status">
-            <span class="conn-dot" id="conn-dot"></span>
-            <span id="conn-label">Connecting</span>
-          </div>
-
-          <div class="win-controls" id="win-controls" aria-label="Window controls">
+          <div class="win-controls" id="win-controls" aria-label="Native window controls">
             <button type="button" class="win-btn" id="win-min" title="Minimize" aria-label="Minimize window">&#8722;</button>
             <button type="button" class="win-btn" id="win-max" title="Maximize" aria-label="Maximize window">&#9723;</button>
             <button type="button" class="win-btn win-btn-close" id="win-close" title="Close" aria-label="Close window">&#10005;</button>
@@ -69,89 +97,169 @@
         </div>
       </header>
 
-      <!-- Workspace Body -->
-      <div class="workspace-shell">
-        <aside class="nav-rail" aria-label="Primary workbench navigation">
-          <nav class="nav-groups">
-            <div class="nav-group">
-              <span class="nav-group-label">Control Plane</span>
-              <button type="button" class="nav-item active" id="nav-overview" data-view="overview">
-                <span class="nav-code">01</span>
-                <span class="nav-label">Command Overview</span>
-              </button>
-              <button type="button" class="nav-item" id="nav-cloud-cli" data-view="cloud-cli">
-                <span class="nav-code">02</span>
-                <span class="nav-label">Cloud CLI Studio</span>
-                <span class="nav-tag">az·gcp·aws</span>
-              </button>
-              <button type="button" class="nav-item" id="nav-mcp" data-view="mcp">
-                <span class="nav-code">03</span>
-                <span class="nav-label">MCP Tool Console</span>
-                <span class="nav-tag" id="nav-mcp-count">34</span>
-              </button>
-            </div>
+      <!-- Main IDE Workbench Body (Activity Bar + Explorer + Center Tabs/Stage + Right Inspector) -->
+      <div class="workbench-body" id="workbench-body">
+        <!-- Zone 1: Narrow Native Activity Bar -->
+        <aside class="activity-bar" id="activity-bar" aria-label="Workbench activity bar">
+          <div class="activity-top">
+            <button type="button" class="activity-btn active" id="nav-overview" data-view="overview" title="Command Overview (Ctrl+1)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2.5" y="2.5" width="6" height="6" rx="1" />
+                <rect x="11.5" y="2.5" width="6" height="6" rx="1" />
+                <rect x="2.5" y="11.5" width="6" height="6" rx="1" />
+                <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-cloud-cli" data-view="cloud-cli" title="Cloud CLI Studio — az · gcloud · aws (Ctrl+2)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2.5" y="3.5" width="15" height="13" rx="1.8" />
+                <path d="M5.5 8L8 10.2L5.5 12.5" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="10" y1="12.5" x2="14.2" y2="12.5" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-mcp" data-view="mcp" title="MCP Tool Console — 34 Tools (Ctrl+3)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="10" cy="4.5" r="2" />
+                <circle cx="4.5" cy="14.5" r="2" />
+                <circle cx="15.5" cy="14.5" r="2" />
+                <path d="M8.8 6.2L5.7 12.6M11.2 6.2L14.3 12.6M6.5 14.5H13.5" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-deployer" data-view="deployer" title="Syncro Deployer — Dual Mode (Ctrl+4)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M10 2.8L16.5 6.4V13.6L10 17.2L3.5 13.6V6.4L10 2.8Z" stroke-linejoin="round" />
+                <path d="M10 10V17.2M10 10L16.5 6.4M10 10L3.5 6.4" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-vm-finops" data-view="vm-finops" title="Multi-Cloud VM & FinOps Matrix (Ctrl+5)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3.5" width="14" height="5" rx="1" />
+                <rect x="3" y="11.5" width="14" height="5" rx="1" />
+                <circle cx="6" cy="6" r="0.8" fill="currentColor" />
+                <circle cx="6" cy="14" r="0.8" fill="currentColor" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-security" data-view="security" title="DevSecOps & Quick Destroy (Ctrl+6)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M10 2.5L16.5 5V9.8C16.5 13.6 13.8 16.5 10 17.6C6.2 16.5 3.5 13.6 3.5 9.8V5L10 2.5Z" stroke-linejoin="round" />
+                <path d="M7.3 10.1L9.2 12L13 8.2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button type="button" class="activity-btn" id="nav-bot" data-view="bot" title="Guardrailed Ops Bot (Ctrl+7)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3.5" y="5.5" width="13" height="10" rx="2" />
+                <line x1="10" y1="2.5" x2="10" y2="5.5" stroke-linecap="round" />
+                <circle cx="7.5" cy="10.2" r="1" fill="currentColor" />
+                <circle cx="12.5" cy="10.2" r="1" fill="currentColor" />
+                <line x1="7.5" y1="13" x2="12.5" y2="13" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
 
-            <div class="nav-group">
-              <span class="nav-group-label">Delivery &amp; Fleet</span>
-              <button type="button" class="nav-item" id="nav-deployer" data-view="deployer">
-                <span class="nav-code">04</span>
-                <span class="nav-label">Syncro Deployer</span>
-              </button>
-              <button type="button" class="nav-item" id="nav-vm-finops" data-view="vm-finops">
-                <span class="nav-code">05</span>
-                <span class="nav-label">VM &amp; FinOps Matrix</span>
-              </button>
-            </div>
-
-            <div class="nav-group">
-              <span class="nav-group-label">Security &amp; Autonomy</span>
-              <button type="button" class="nav-item" id="nav-security" data-view="security">
-                <span class="nav-code">06</span>
-                <span class="nav-label">DevSecOps &amp; Destroy</span>
-              </button>
-              <button type="button" class="nav-item" id="nav-bot" data-view="bot">
-                <span class="nav-code">07</span>
-                <span class="nav-label">Guardrailed Ops Bot</span>
-              </button>
-            </div>
-          </nav>
-
-          <section class="rail-footer" aria-label="Cloud CLI and native runtime posture">
-            <div class="rail-footer-title">Cloud CLI Wrappers</div>
-            <div class="cli-pill-row" id="rail-cli-badges">
-              <span class="cli-badge" data-cli="az">az</span>
-              <span class="cli-badge" data-cli="gcloud">gcloud</span>
-              <span class="cli-badge" data-cli="aws">aws</span>
-            </div>
-            <div class="rail-meta" id="rail-native-meta">
-              MCP Host · Tri-Broker Active
-            </div>
-          </section>
+          <div class="activity-bottom">
+            <button type="button" class="activity-btn" id="act-popout-cli" title="Pop Out Separate Cloud CLI Terminal Window (Ctrl+N)">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M11 3.5H16.5V9" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M16.5 3.5L9.5 10.5" stroke-linecap="round" />
+                <path d="M14.5 12V15.5C14.5 16.05 14.05 16.5 13.5 16.5H4.5C3.95 16.5 3.5 16.05 3.5 15.5V6.5C3.5 5.95 3.95 5.5 4.5 5.5H8" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
         </aside>
 
-        <div class="main-column">
-          <main class="view-stage" id="view-stage" tabindex="-1">
-            <!-- Dynamically rendered view -->
-          </main>
+        <!-- Zone 2: Collapsible Native Explorer Tree Sidebar -->
+        <aside class="explorer-pane" id="explorer-pane" aria-label="Multi-Cloud Explorer Tree">
+          <div class="pane-header">
+            <span class="pane-header-title">EXPLORER</span>
+            <button type="button" class="btn-ghost btn-xs" id="btn-explorer-refresh" title="Refresh fleet tree">&#8635;</button>
+          </div>
+          <div class="explorer-scroll" id="explorer-tree">
+            <!-- Dynamically populated native tree -->
+          </div>
+        </aside>
 
-          <!-- Collapsible Live Telemetry Drawer -->
-          <section class="telemetry-drawer" id="telemetry-drawer" aria-label="Live telemetry stream">
-            <div class="drawer-header" id="drawer-toggle" role="button" tabindex="0">
-              <div class="drawer-header-left">
-                <span class="drawer-title">Live Event Stream</span>
-                <span class="drawer-sub" id="drawer-ws-status">WS standby</span>
-                <span class="drawer-count" id="drawer-event-count">0 events</span>
+        <!-- Drag Splitter (Explorer | Center) -->
+        <div class="v-splitter" id="splitter-left" role="separator" aria-orientation="vertical"></div>
+
+        <!-- Zone 3: Center Multi-Tab Workbench + Bottom Resizable Dock -->
+        <div class="center-column" id="center-column">
+          <div class="tab-strip" id="tab-strip" role="tablist" aria-label="Open workbench tabs">
+            <!-- Dynamically rendered tabs -->
+          </div>
+
+          <main class="view-stage" id="view-stage" tabindex="-1"></main>
+
+          <div class="h-splitter" id="splitter-bottom" role="separator" aria-orientation="horizontal"></div>
+
+          <!-- Bottom IDE Dock (Live Stream | Quick CLI | Tri-Broker | Native Runtime) -->
+          <section class="bottom-dock" id="bottom-dock" aria-label="Bottom workbench dock">
+            <div class="dock-tabs">
+              <div class="dock-tab-group">
+                <button type="button" class="dock-tab active" data-dock-tab="stream" id="dock-tab-stream">
+                  Live Stream <span class="dock-badge" id="drawer-event-count">0</span>
+                </button>
+                <button type="button" class="dock-tab" data-dock-tab="quick-cli" id="dock-tab-cli">
+                  Quick Cloud CLI
+                </button>
+                <button type="button" class="dock-tab" data-dock-tab="brokers" id="dock-tab-brokers">
+                  Tri-Broker Fabric
+                </button>
+                <button type="button" class="dock-tab" data-dock-tab="runtime" id="dock-tab-runtime">
+                  Native Runtime
+                </button>
               </div>
-              <div class="drawer-header-actions">
+              <div class="dock-actions">
+                <button type="button" class="btn-ghost btn-xs" id="btn-popout-telemetry" title="Pop out Live Telemetry into separate window">Pop Out</button>
                 <button type="button" class="btn-ghost btn-xs" id="btn-clear-stream">Clear</button>
-                <span class="drawer-chevron" id="drawer-chevron">&#9662;</span>
+                <button type="button" class="btn-ghost btn-xs" id="btn-dock-collapse" title="Collapse/Expand Bottom Dock">&#9662;</button>
               </div>
             </div>
-            <div class="drawer-body" id="drawer-stream-list"></div>
+            <div class="dock-content" id="dock-content"></div>
           </section>
         </div>
+
+        <!-- Drag Splitter (Center | Inspector) -->
+        <div class="v-splitter" id="splitter-right" role="separator" aria-orientation="vertical"></div>
+
+        <!-- Zone 4: Right Property & Telemetry Inspector Dock -->
+        <aside class="inspector-pane" id="inspector-pane" aria-label="Property Inspector">
+          <div class="pane-header">
+            <span class="pane-header-title">INSPECTOR</span>
+            <button type="button" class="btn-ghost btn-xs" id="btn-close-inspector" title="Close Inspector">&#10005;</button>
+          </div>
+          <div class="inspector-body" id="inspector-body">
+            <div class="inspector-empty">
+              Select any project, cloud environment, deployment, VM SKU, or CLI audit item to inspect its live telemetry, locks, and actions.
+            </div>
+          </div>
+        </aside>
       </div>
+
+      <!-- Zone 5: 24px Native OS Bottom Status Bar -->
+      <footer class="statusbar" id="desktop-statusbar">
+        <div class="statusbar-left">
+          <span class="sb-item sb-accent" id="sb-conn">
+            <span class="conn-dot" id="conn-dot"></span>
+            <span id="conn-label">Connecting</span>
+          </span>
+          <span class="sb-item" id="sb-mode">MODE: AGENTIC</span>
+          <span class="sb-item" id="sb-mcp">MCP: 34 Tools</span>
+          <span class="sb-item" id="sb-clis">az · gcloud · aws</span>
+        </div>
+        <div class="statusbar-right">
+          <span class="sb-item" id="sb-popouts">Windows: 1</span>
+          <span class="sb-item" id="sb-native">Native: ready</span>
+          <span class="sb-item" id="sb-ws">WS: standby</span>
+          <span class="sb-item" id="sb-host">Desktop</span>
+        </div>
+      </footer>
     </div>
+
+    <!-- Dropdown Menu Popover (for integrated File / View / Cloud CLI / Window menubar) -->
+    <div class="menu-popover hidden" id="menu-popover" role="menu"></div>
+
+    <!-- Native-Styled Right-Click Context Menu Fallback (when outside Electron) -->
+    <div class="context-menu hidden" id="context-menu" role="menu"></div>
 
     <!-- Command Palette Modal -->
     <div class="palette-backdrop hidden" id="palette-backdrop" role="dialog" aria-modal="true" aria-label="Quick command palette">
@@ -161,7 +269,7 @@
             type="text"
             id="palette-input"
             class="palette-input"
-            placeholder="Type a view, Cloud CLI command (az / gcloud / aws), or MCP tool..."
+            placeholder="Type a view, pop-out window, Cloud CLI command (az / gcloud / aws), or MCP tool..."
             autocomplete="off"
           />
           <kbd class="kbd-hint">ESC</kbd>
@@ -170,7 +278,7 @@
       </div>
     </div>
 
-    <!-- Toast Container -->
+    <!-- Toast Stack -->
     <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
 
     <script type="module" src="./src/main.js"></script>
