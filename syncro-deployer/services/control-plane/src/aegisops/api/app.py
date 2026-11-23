@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
@@ -35,6 +36,14 @@ from aegisops.domain.models import (
     Project,
     VmProvisionRequest,
     VmSelectionCriteria,
+)
+from aegisops.iac.models import (
+    AnsibleGenerateRequest,
+    CicdGenerateRequest,
+    ContainerGenerateRequest,
+    HelmGenerateRequest,
+    TerraformGenerateRequest,
+    TerraformRunRequest,
 )
 from aegisops.mcp.server import AegisMcpServer
 from aegisops.syncro.models import (
@@ -97,6 +106,37 @@ class CloudCliProviderBody(BaseModel):
     subscription_or_project: str | None = None
     region: str | None = None
     actor: str = "electron-desktop"
+
+
+class TerraformBuildBody(BaseModel):
+    workspace_id: str | None = None
+    workspace_dir: str | None = None
+
+
+class DevSecOpsGraphBody(BaseModel):
+    workspace_id: str | None = None
+    workspace_dir: str | None = None
+    include_pipeline: bool = True
+
+
+class SecurityPathAssessBody(BaseModel):
+    project_id: str = "syncro-workspace"
+    target_path: str | None = None
+
+
+class SecurityDastBody(BaseModel):
+    project_id: str = "syncro-workspace"
+    target_url: str = "http://127.0.0.1:8080/api/v1/health"
+    live_probe: bool = True
+
+
+class SecurityFullAssessBody(BaseModel):
+    project_id: str = "payments-core"
+    target_path: str | None = None
+    target_url: str | None = "http://127.0.0.1:8080/api/v1/health"
+    include_dast: bool = True
+    include_graph: bool = True
+    live_dast_probe: bool = True
 
 
 def create_app(
@@ -609,6 +649,189 @@ def create_app(
             CliExecutionRequest(provider=CliProvider.AWS, **body.model_dump())
         )
         return result.model_dump(mode="json")
+
+    # =========================================================================
+    # IaC Terraform Studio, DevSecOps Graph & Script Writers (Ansible/Helm/CICD)
+    # =========================================================================
+    @app.get("/api/v1/iac/workspaces")
+    async def iac_list_workspaces() -> list[dict[str, Any]]:
+        return [w.model_dump(mode="json") for w in svc.iac_studio.list_workspaces()]
+
+    @app.post("/api/v1/iac/terraform/generate", status_code=201)
+    async def iac_terraform_generate(req: TerraformGenerateRequest) -> dict[str, Any]:
+        bundle = svc.iac_studio.generate(req)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {
+                "type": "iac.terraform.generated",
+                "workspace_id": bundle.workspace_id,
+                "cloud": bundle.cloud.value,
+                "resources": len(bundle.resources),
+            },
+        )
+        return bundle.model_dump(mode="json")
+
+    @app.post("/api/v1/iac/terraform/build")
+    async def iac_terraform_build(body: TerraformBuildBody) -> dict[str, Any]:
+        res = await svc.iac_studio.build(
+            workspace_id=body.workspace_id,
+            workspace_dir=body.workspace_dir,
+        )
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {
+                "type": "iac.terraform.built",
+                "workspace_id": res.workspace_id,
+                "validate_ok": res.validate_ok,
+                "resources": len(res.resources_discovered),
+            },
+        )
+        return res.model_dump(mode="json")
+
+    @app.post("/api/v1/iac/terraform/run")
+    async def iac_terraform_run(req: TerraformRunRequest) -> dict[str, Any]:
+        try:
+            res = await svc.iac_studio.run(req)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {
+                "type": "iac.terraform.run",
+                "workspace_id": res.workspace_id,
+                "action": res.action,
+                "status": res.status,
+            },
+        )
+        return res.model_dump(mode="json")
+
+    @app.post("/api/v1/iac/graph/devsecops")
+    async def iac_devsecops_graph(body: DevSecOpsGraphBody) -> dict[str, Any]:
+        graph = svc.iac_studio.build_graph(
+            workspace_id=body.workspace_id,
+            workspace_dir=body.workspace_dir,
+            include_pipeline=body.include_pipeline,
+        )
+        return graph.model_dump(mode="json")
+
+    @app.get("/api/v1/scripts/bundles")
+    async def scripts_list_bundles() -> list[dict[str, Any]]:
+        return [b.model_dump(mode="json") for b in svc.script_writers.list_bundles()]
+
+    @app.post("/api/v1/scripts/ansible/generate", status_code=201)
+    async def scripts_generate_ansible(req: AnsibleGenerateRequest) -> dict[str, Any]:
+        bundle = svc.script_writers.generate_ansible(req)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "scripts.ansible.generated", "bundle_id": bundle.bundle_id, "name": bundle.name},
+        )
+        return bundle.model_dump(mode="json")
+
+    @app.post("/api/v1/scripts/helm/generate", status_code=201)
+    async def scripts_generate_helm(req: HelmGenerateRequest) -> dict[str, Any]:
+        bundle = svc.script_writers.generate_helm(req)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "scripts.helm.generated", "bundle_id": bundle.bundle_id, "name": bundle.name},
+        )
+        return bundle.model_dump(mode="json")
+
+    @app.post("/api/v1/scripts/cicd/generate", status_code=201)
+    async def scripts_generate_cicd(req: CicdGenerateRequest) -> dict[str, Any]:
+        bundle = svc.script_writers.generate_cicd(req)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "scripts.cicd.generated", "bundle_id": bundle.bundle_id, "kind": bundle.kind},
+        )
+        return bundle.model_dump(mode="json")
+
+    @app.post("/api/v1/scripts/container/generate", status_code=201)
+    async def scripts_generate_container(req: ContainerGenerateRequest) -> dict[str, Any]:
+        bundle = svc.script_writers.generate_container(req)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "scripts.container.generated", "bundle_id": bundle.bundle_id, "name": bundle.name},
+        )
+        return bundle.model_dump(mode="json")
+
+    # =========================================================================
+    # Security Assessment MCP (Trivy · Bandit · Multi-Lang SAST · DAST · Full)
+    # =========================================================================
+    @app.get("/api/v1/security/mcp/status")
+    async def security_mcp_status() -> dict[str, Any]:
+        return svc.security_mcp.toolchain_status()
+
+    @app.get("/api/v1/security/assessments")
+    async def security_list_assessments() -> list[dict[str, Any]]:
+        return [r.model_dump(mode="json") for r in svc.security_mcp.history[:20]]
+
+    @app.post("/api/v1/security/assess/trivy")
+    async def security_assess_trivy(body: SecurityPathAssessBody) -> dict[str, Any]:
+        tpath = Path(body.target_path) if body.target_path else svc.settings.repo_root
+        rep = await svc.security_mcp.run_trivy(target_path=tpath, project_id=body.project_id)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "security.trivy.completed", "assessment_id": rep.assessment_id, "grade": rep.grade},
+        )
+        return rep.model_dump(mode="json")
+
+    @app.post("/api/v1/security/assess/bandit")
+    async def security_assess_bandit(body: SecurityPathAssessBody) -> dict[str, Any]:
+        tpath = Path(body.target_path) if body.target_path else svc.settings.repo_root
+        rep = await svc.security_mcp.run_bandit(target_path=tpath, project_id=body.project_id)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "security.bandit.completed", "assessment_id": rep.assessment_id, "grade": rep.grade},
+        )
+        return rep.model_dump(mode="json")
+
+    @app.post("/api/v1/security/assess/sast")
+    async def security_assess_sast(body: SecurityPathAssessBody) -> dict[str, Any]:
+        tpath = Path(body.target_path) if body.target_path else svc.settings.repo_root
+        rep = await svc.security_mcp.run_sast(target_path=tpath, project_id=body.project_id)
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "security.sast.completed", "assessment_id": rep.assessment_id, "grade": rep.grade},
+        )
+        return rep.model_dump(mode="json")
+
+    @app.post("/api/v1/security/assess/dast")
+    async def security_assess_dast(body: SecurityDastBody) -> dict[str, Any]:
+        try:
+            rep = await svc.security_mcp.run_dast(
+                target_url=body.target_url,
+                project_id=body.project_id,
+                live_probe=body.live_probe,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {"type": "security.dast.completed", "assessment_id": rep.assessment_id, "grade": rep.grade},
+        )
+        return rep.model_dump(mode="json")
+
+    @app.post("/api/v1/security/assess/full")
+    async def security_assess_full(body: SecurityFullAssessBody) -> dict[str, Any]:
+        tpath = Path(body.target_path) if body.target_path else svc.settings.repo_root
+        rep = await svc.security_mcp.run_full_assessment(
+            project_id=body.project_id,
+            target_path=tpath,
+            target_url=body.target_url,
+            include_dast=body.include_dast,
+            include_graph=body.include_graph,
+            live_dast_probe=body.live_dast_probe,
+        )
+        await svc.redis.publish_channel(
+            "aegis:live",
+            {
+                "type": "security.full.completed",
+                "assessment_id": rep.assessment_id,
+                "grade": rep.grade,
+                "score": rep.compliance_score,
+            },
+        )
+        return rep.model_dump(mode="json")
 
     @app.post("/mcp")
     async def mcp_http_endpoint(payload: dict[str, Any]) -> dict[str, Any]:

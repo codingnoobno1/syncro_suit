@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 from aegisops.adapters.cloud.cli_wrapper import CliExecutionRequest, CliProvider
@@ -19,6 +20,14 @@ from aegisops.domain.models import (
     VmProvisionRequest,
     VmSelectionCriteria,
 )
+from aegisops.iac.models import (
+    AnsibleGenerateRequest,
+    CicdGenerateRequest,
+    ContainerGenerateRequest,
+    HelmGenerateRequest,
+    TerraformGenerateRequest,
+    TerraformRunRequest,
+)
 from aegisops.syncro.models import SyncroDeployRequest, SyncroMode
 
 
@@ -27,10 +36,57 @@ class AegisMcpServer:
 
     PROTOCOL_VERSION = "2024-11-05"
 
+    # MCP tool annotations: lets clients auto-run safe reads and always gate destructive calls.
+    READ_ONLY_TOOLS = frozenset(
+        {
+            "aegis_list_projects",
+            "aegis_vm_compare_clouds",
+            "aegis_security_scan",
+            "aegis_terraform_plan",
+            "aegis_preview_destroy",
+            "aegis_powershell_rbac_plan",
+            "aegis_finops_summary",
+            "aegis_drift_scan",
+            "aegis_broker_health",
+            "aegis_bot_read_all_statuses",
+            "aegis_bot_read_bill",
+            "aegis_bot_generate_prompts",
+            "aegis_syncro_suite_status",
+            "aegis_cloud_cli_status",
+            "aegis_cloud_cli_history",
+            "aegis_iac_terraform_build",
+            "aegis_iac_devsecops_graph",
+            "aegis_security_mcp_status",
+            "aegis_security_trivy_scan",
+            "aegis_security_bandit_scan",
+            "aegis_security_sast_scan",
+            "aegis_security_dast_scan",
+            "aegis_security_full_assessment",
+        }
+    )
+    DESTRUCTIVE_TOOLS = frozenset({"aegis_quick_destroy"})
+
+    @staticmethod
+    def _compact_json(payload: Any) -> str:
+        """Minified JSON keeps MCP tool results ~25-35% smaller for token-limited LLM clients."""
+        return json.dumps(payload, separators=(",", ":"), default=str)
+
+    def _annotate(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for tool in tools:
+            name = tool["name"]
+            tool["annotations"] = {
+                "readOnlyHint": name in self.READ_ONLY_TOOLS,
+                "destructiveHint": name in self.DESTRUCTIVE_TOOLS,
+            }
+        return tools
+
     def __init__(self, platform: PlatformService) -> None:
         self._platform = platform
 
     def list_tools(self) -> list[dict[str, Any]]:
+        return self._annotate(self._tool_definitions())
+
+    def _tool_definitions(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": "aegis_list_projects",
@@ -419,6 +475,196 @@ class AegisMcpServer:
                     },
                 },
             },
+            {
+                "name": "aegis_iac_terraform_generate",
+                "description": "Generate production-hardened multi-file Terraform HCL (providers, variables, security, main, outputs) for AWS, GCP, or Azure.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_name": {"type": "string", "default": "syncro-workload"},
+                        "cloud": {"type": "string", "enum": ["aws", "gcp", "azure"], "default": "aws"},
+                        "blueprint": {
+                            "type": "string",
+                            "enum": ["vpc-k8s", "hardened-vm", "serverless-api", "zero-trust-mesh", "data-platform"],
+                            "default": "vpc-k8s",
+                        },
+                        "region": {"type": "string"},
+                        "environment": {"type": "string", "default": "staging"},
+                        "enable_waf": {"type": "boolean", "default": True},
+                        "write_to_disk": {"type": "boolean", "default": True},
+                        "output_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_iac_terraform_build",
+                "description": "Build and validate a Terraform workspace (init, fmt check, HCL/validate, resource & DAG extraction).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "workspace_id": {"type": "string"},
+                        "workspace_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_iac_terraform_run",
+                "description": "Run Terraform plan, apply, or destroy with OPA/IaC security guardrails and return a DevSecOps architecture & security graph.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "workspace_id": {"type": "string"},
+                        "workspace_dir": {"type": "string"},
+                        "action": {"type": "string", "enum": ["plan", "apply", "destroy"], "default": "plan"},
+                        "dry_run": {"type": "boolean", "default": True},
+                        "auto_approve": {"type": "boolean", "default": False},
+                        "environment": {"type": "string", "default": "staging"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_iac_devsecops_graph",
+                "description": "Build a DevSecOps dependency & security posture graph (JSON nodes/edges, Mermaid, Graphviz DOT, ASCII) from Terraform IaC and security findings.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "workspace_id": {"type": "string"},
+                        "workspace_dir": {"type": "string"},
+                        "include_pipeline": {"type": "boolean", "default": True},
+                    },
+                },
+            },
+            {
+                "name": "aegis_script_write_ansible",
+                "description": "Generate a CIS/Zero-Trust hardened Ansible playbook, role, handlers, inventory, and ansible.cfg.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "service_name": {"type": "string", "default": "syncro-edge"},
+                        "cloud": {"type": "string", "enum": ["aws", "gcp", "azure"], "default": "aws"},
+                        "hardening_profile": {"type": "string", "enum": ["cis-l1", "cis-l2", "pci-dss", "zero-trust"], "default": "cis-l2"},
+                        "include_docker": {"type": "boolean", "default": True},
+                        "include_firewall": {"type": "boolean", "default": True},
+                        "write_to_disk": {"type": "boolean", "default": True},
+                        "output_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_script_write_helm",
+                "description": "Generate a Restricted Pod-Security Helm v3 chart (Chart.yaml, values.yaml, Deployment, Service, ServiceAccount, NetworkPolicy, HPA, PDB).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "chart_name": {"type": "string", "default": "syncro-service"},
+                        "image": {"type": "string", "default": "ghcr.io/syncrosuite/syncro-api:1.0.0"},
+                        "port": {"type": "integer", "default": 8080},
+                        "replicas": {"type": "integer", "default": 3},
+                        "cloud": {"type": "string", "enum": ["aws", "gcp", "azure"], "default": "aws"},
+                        "enable_network_policy": {"type": "boolean", "default": True},
+                        "enable_hpa": {"type": "boolean", "default": True},
+                        "write_to_disk": {"type": "boolean", "default": True},
+                        "output_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_script_write_cicd",
+                "description": "Generate a DevSecOps CI/CD pipeline (GitHub Actions, GitLab CI, Azure DevOps, or Jenkinsfile) integrated with Syncro CLI, Trivy, Bandit, SAST, DAST, and Terraform.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_name": {"type": "string", "default": "syncro-service"},
+                        "platform": {"type": "string", "enum": ["github-actions", "gitlab-ci", "azure-devops", "jenkins"], "default": "github-actions"},
+                        "language": {"type": "string", "enum": ["python", "node", "go", "java", "dotnet"], "default": "python"},
+                        "cloud": {"type": "string", "enum": ["aws", "gcp", "azure"], "default": "aws"},
+                        "deploy_strategy": {"type": "string", "enum": ["canary", "blue-green", "rolling"], "default": "canary"},
+                        "write_to_disk": {"type": "boolean", "default": True},
+                        "output_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_script_write_container",
+                "description": "Generate a hardened multi-stage non-root Dockerfile (pinned base / distroless) and .dockerignore.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "service_name": {"type": "string", "default": "syncro-api"},
+                        "language": {"type": "string", "enum": ["python", "node", "go", "java"], "default": "python"},
+                        "port": {"type": "integer", "default": 8080},
+                        "enable_distroless": {"type": "boolean", "default": True},
+                        "write_to_disk": {"type": "boolean", "default": True},
+                        "output_dir": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_security_mcp_status",
+                "description": "Inspect installed Security & IaC MCP binaries (Trivy, Bandit, Semgrep, Checkov, OPA, Terraform, Ansible, Helm) and guardrails.",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "aegis_security_trivy_scan",
+                "description": "Run Trivy vulnerability, secret, Dockerfile, Kubernetes/Helm, and IaC misconfiguration assessment.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": {"type": "string", "default": "syncro-workspace"},
+                        "target_path": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_security_bandit_scan",
+                "description": "Run Bandit Python AST security assessment (CWE & OWASP mapped).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": {"type": "string", "default": "syncro-workspace"},
+                        "target_path": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_security_sast_scan",
+                "description": "Run multi-language SAST assessment (Python, JS/TS, Go, Java, C#, Shell) mapped to OWASP Top 10 & CWE.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": {"type": "string", "default": "syncro-workspace"},
+                        "target_path": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_security_dast_scan",
+                "description": "Run non-destructive OWASP DAST baseline assessment (TLS, CSP/HSTS/XFO headers, CORS, sensitive path exposure) against a target URL.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["target_url"],
+                    "properties": {
+                        "target_url": {"type": "string", "description": "HTTP/HTTPS endpoint URL to assess"},
+                        "project_id": {"type": "string", "default": "syncro-workspace"},
+                        "live_probe": {"type": "boolean", "default": True},
+                    },
+                },
+            },
+            {
+                "name": "aegis_security_full_assessment",
+                "description": "Run unified DevSecOps security assessment (Trivy + Bandit + SAST + IaC/OPA + optional DAST) with compliance grade, SARIF 2.1.0, and DevSecOps security graph.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": {"type": "string", "default": "payments-core"},
+                        "target_path": {"type": "string"},
+                        "target_url": {"type": "string"},
+                        "include_dast": {"type": "boolean", "default": True},
+                        "include_graph": {"type": "boolean", "default": True},
+                        "live_dast_probe": {"type": "boolean", "default": True},
+                    },
+                },
+            },
         ]
 
     def list_resources(self) -> list[dict[str, Any]]:
@@ -438,6 +684,10 @@ class AegisMcpServer:
             {"uri": "aegis://scans/latest", "name": "Latest DevSecOps Scans", "mimeType": "application/json"},
             {"uri": "aegis://policies/opa", "name": "OPA Rego Policies", "mimeType": "application/json"},
             {"uri": "aegis://events/kafka-tail", "name": "Kafka CloudEvents Tail", "mimeType": "application/json"},
+            {"uri": "aegis://iac/workspaces", "name": "Generated Terraform IaC Workspaces", "mimeType": "application/json"},
+            {"uri": "aegis://iac/graphs/latest", "name": "Latest DevSecOps Architecture & Security Graphs", "mimeType": "application/json"},
+            {"uri": "aegis://scripts/bundles", "name": "Generated Ansible, Helm & CI/CD Script Bundles", "mimeType": "application/json"},
+            {"uri": "aegis://security/assessments/latest", "name": "Latest Trivy/Bandit/SAST/DAST Security MCP Assessments", "mimeType": "application/json"},
         ]
 
     def list_prompts(self) -> list[dict[str, Any]]:
@@ -476,6 +726,30 @@ class AegisMcpServer:
                 "arguments": [
                     {"name": "cloud", "required": True},
                     {"name": "resource_group", "required": True},
+                ],
+            },
+            {
+                "name": "iac_terraform_devsecops_workflow",
+                "description": "Generate multi-cloud Terraform HCL, validate/build it, run a guardrailed plan/apply, and produce its DevSecOps architecture graph.",
+                "arguments": [
+                    {"name": "cloud", "required": True},
+                    {"name": "project_name", "required": True},
+                ],
+            },
+            {
+                "name": "script_writer_release_bundle",
+                "description": "Generate synchronized Ansible hardening, Restricted Helm v3 chart, hardened Dockerfile, and Syncro CLI CI/CD pipeline.",
+                "arguments": [
+                    {"name": "project_name", "required": True},
+                    {"name": "platform", "required": False},
+                ],
+            },
+            {
+                "name": "security_mcp_full_audit",
+                "description": "Run Trivy, Bandit, multi-language SAST, non-destructive DAST, OPA gate, SARIF 2.1.0 export, and DevSecOps security graph overlay.",
+                "arguments": [
+                    {"name": "project_id", "required": True},
+                    {"name": "target_url", "required": False},
                 ],
             },
         ]
@@ -698,11 +972,88 @@ class AegisMcpServer:
                 item.model_dump(mode="json")
                 for item in self._platform.cloud_cli.history(provider=prov, limit=limit)
             ]
+        elif name == "aegis_iac_terraform_generate":
+            tf_gen_req = TerraformGenerateRequest.model_validate(args)
+            payload = self._platform.iac_studio.generate(tf_gen_req).model_dump(mode="json")
+        elif name == "aegis_iac_terraform_build":
+            payload = (
+                await self._platform.iac_studio.build(
+                    workspace_id=args.get("workspace_id"),
+                    workspace_dir=args.get("workspace_dir"),
+                )
+            ).model_dump(mode="json")
+        elif name == "aegis_iac_terraform_run":
+            tf_run_req = TerraformRunRequest.model_validate(args)
+            payload = (await self._platform.iac_studio.run(tf_run_req)).model_dump(mode="json")
+        elif name == "aegis_iac_devsecops_graph":
+            payload = self._platform.iac_studio.build_graph(
+                workspace_id=args.get("workspace_id"),
+                workspace_dir=args.get("workspace_dir"),
+                include_pipeline=bool(args.get("include_pipeline", True)),
+            ).model_dump(mode="json")
+        elif name == "aegis_script_write_ansible":
+            ans_req = AnsibleGenerateRequest.model_validate(args)
+            payload = self._platform.script_writers.generate_ansible(ans_req).model_dump(mode="json")
+        elif name == "aegis_script_write_helm":
+            helm_req = HelmGenerateRequest.model_validate(args)
+            payload = self._platform.script_writers.generate_helm(helm_req).model_dump(mode="json")
+        elif name == "aegis_script_write_cicd":
+            cicd_req = CicdGenerateRequest.model_validate(args)
+            payload = self._platform.script_writers.generate_cicd(cicd_req).model_dump(mode="json")
+        elif name == "aegis_script_write_container":
+            ctr_req = ContainerGenerateRequest.model_validate(args)
+            payload = self._platform.script_writers.generate_container(ctr_req).model_dump(mode="json")
+        elif name == "aegis_security_mcp_status":
+            payload = self._platform.security_mcp.toolchain_status()
+        elif name == "aegis_security_trivy_scan":
+            tpath = Path(args["target_path"]) if args.get("target_path") else self._platform.settings.repo_root
+            payload = (
+                await self._platform.security_mcp.run_trivy(
+                    target_path=tpath,
+                    project_id=str(args.get("project_id", "syncro-workspace")),
+                )
+            ).model_dump(mode="json")
+        elif name == "aegis_security_bandit_scan":
+            tpath = Path(args["target_path"]) if args.get("target_path") else self._platform.settings.repo_root
+            payload = (
+                await self._platform.security_mcp.run_bandit(
+                    target_path=tpath,
+                    project_id=str(args.get("project_id", "syncro-workspace")),
+                )
+            ).model_dump(mode="json")
+        elif name == "aegis_security_sast_scan":
+            tpath = Path(args["target_path"]) if args.get("target_path") else self._platform.settings.repo_root
+            payload = (
+                await self._platform.security_mcp.run_sast(
+                    target_path=tpath,
+                    project_id=str(args.get("project_id", "syncro-workspace")),
+                )
+            ).model_dump(mode="json")
+        elif name == "aegis_security_dast_scan":
+            payload = (
+                await self._platform.security_mcp.run_dast(
+                    target_url=str(args["target_url"]),
+                    project_id=str(args.get("project_id", "syncro-workspace")),
+                    live_probe=bool(args.get("live_probe", True)),
+                )
+            ).model_dump(mode="json")
+        elif name == "aegis_security_full_assessment":
+            tpath = Path(args["target_path"]) if args.get("target_path") else self._platform.settings.repo_root
+            payload = (
+                await self._platform.security_mcp.run_full_assessment(
+                    project_id=str(args.get("project_id", "payments-core")),
+                    target_path=tpath,
+                    target_url=args.get("target_url"),
+                    include_dast=bool(args.get("include_dast", True)),
+                    include_graph=bool(args.get("include_graph", True)),
+                    live_dast_probe=bool(args.get("live_dast_probe", True)),
+                )
+            ).model_dump(mode="json")
         else:
             raise ValueError(f"Unknown MCP tool: {name}")
 
         return {
-            "content": [{"type": "text", "text": json.dumps(payload, indent=2)}],
+            "content": [{"type": "text", "text": self._compact_json(payload)}],
             "isError": False,
         }
 
@@ -739,12 +1090,20 @@ class AegisMcpServer:
         elif uri == "aegis://events/kafka-tail":
             events = await self._platform.kafka.list_events(limit=20)
             data = [e.model_dump(mode="json") for e in events]
+        elif uri == "aegis://iac/workspaces":
+            data = [w.model_dump(mode="json") for w in self._platform.iac_studio.list_workspaces()]
+        elif uri == "aegis://iac/graphs/latest":
+            data = [g.model_dump(mode="json") for g in self._platform.iac_studio.latest_graphs[:5]]
+        elif uri == "aegis://scripts/bundles":
+            data = [b.model_dump(mode="json") for b in self._platform.script_writers.list_bundles()]
+        elif uri == "aegis://security/assessments/latest":
+            data = [a.model_dump(mode="json") for a in self._platform.security_mcp.history[:10]]
         else:
             raise ValueError(f"Unknown MCP resource URI: {uri}")
 
         return {
             "contents": [
-                {"uri": uri, "mimeType": "application/json", "text": json.dumps(data, indent=2)}
+                {"uri": uri, "mimeType": "application/json", "text": self._compact_json(data)}
             ]
         }
 
@@ -781,6 +1140,21 @@ class AegisMcpServer:
             "multicloud_least_privilege_review": (
                 f"Generate a least-privilege IAM/ABAC plan on {args.get('cloud', 'aws')} for scope "
                 f"'{args.get('resource_group', 'aws-stack-edge-pr-501')}' and verify zero Owner/Admin roles."
+            ),
+            "iac_terraform_devsecops_workflow": (
+                f"Call `aegis_iac_terraform_generate` for project '{args.get('project_name', 'syncro-workload')}' on "
+                f"{args.get('cloud', 'aws')}, run `aegis_iac_terraform_build` to validate HCL, run `aegis_iac_terraform_run` "
+                "(dry_run=true), and inspect the emitted DevSecOps architecture graph."
+            ),
+            "script_writer_release_bundle": (
+                f"Generate a complete DevSecOps release bundle for '{args.get('project_name', 'syncro-service')}' "
+                f"(platform={args.get('platform', 'github-actions')}) using `aegis_script_write_ansible`, "
+                "`aegis_script_write_helm`, `aegis_script_write_container`, and `aegis_script_write_cicd`."
+            ),
+            "security_mcp_full_audit": (
+                f"Run `aegis_security_full_assessment` for project '{args.get('project_id', 'payments-core')}' "
+                f"(target_url='{args.get('target_url', 'http://127.0.0.1:8080/api/v1/health')}'), review Trivy, Bandit, "
+                "SAST, DAST, and OPA violations, and output prioritized remediation steps."
             ),
         }
         if name not in templates:

@@ -42,6 +42,10 @@ from aegisops.domain.models import (
     ScanReport,
     utc_now,
 )
+from aegisops.iac.graph_builder import DevSecOpsGraphBuilder
+from aegisops.iac.script_writers import DevOpsScriptWriterEngine
+from aegisops.iac.terraform_studio import TerraformIacEngine
+from aegisops.security.assessment_mcp import SecurityAssessmentEngine
 from aegisops.security.opa_gate import OpaPolicyGate
 from aegisops.security.sarif import to_sarif
 from aegisops.security.scanners import SecurityPipelineEngine
@@ -110,6 +114,21 @@ class PlatformService:
         )
 
         self.cloud_cli = MultiCloudCliWrapper(settings=settings, kafka=kafka, redis=redis)
+        self.graph_builder = DevSecOpsGraphBuilder()
+        generated_root = settings.repo_root / ".syncro-generated"
+        self.iac_studio = TerraformIacEngine(
+            workspace_root=generated_root,
+            scanner=scanner,
+            graph_builder=self.graph_builder,
+            mode=settings.mode,
+        )
+        self.script_writers = DevOpsScriptWriterEngine(workspace_root=generated_root)
+        self.security_mcp = SecurityAssessmentEngine(
+            opa_gate=opa_gate,
+            iac_scanner=scanner,
+            graph_builder=self.graph_builder,
+            mode=settings.mode,
+        )
         self.bot = AegisMcpBotService(platform=self, docker=self.docker)
         self.syncro = SyncroDeployerService(platform=self, journal=self.journal)
 

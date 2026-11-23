@@ -101,9 +101,7 @@ export function connectLiveWebSocket({ onMessage, onStatus }) {
           retryTimer = setTimeout(open, 3000);
         }
       };
-      ws.onerror = () => {
-        ws?.close();
-      };
+      ws.onerror = () => ws?.close();
     } catch {
       onStatus?.('offline');
     }
@@ -120,9 +118,23 @@ export function connectLiveWebSocket({ onMessage, onStatus }) {
 
 export const api = {
   health: () => apiRequest('/api/v1/health'),
+  healthReady: () => apiRequest('/api/v1/health/ready'),
   overview: () => apiRequest('/api/v1/overview'),
+  projects: () => apiRequest('/api/v1/projects'),
+  environments: () => apiRequest('/api/v1/environments'),
   cloudsStatus: () => apiRequest('/api/v1/clouds/status'),
   finops: () => apiRequest('/api/v1/finops/summary'),
+  driftCheck: (envId) =>
+    apiRequest(`/api/v1/drift/${encodeURIComponent(envId)}/check`, { method: 'POST' }),
+  extensions: () => apiRequest('/api/v1/extensions'),
+  invokeExtension: (extId, hookName, payload = {}) =>
+    apiRequest(`/api/v1/extensions/${encodeURIComponent(extId)}/hooks`, {
+      method: 'POST',
+      body: JSON.stringify({ hook_name: hookName, payload }),
+    }),
+  brokersHealth: () => apiRequest('/api/v1/brokers/health'),
+  kafkaEvents: () => apiRequest('/api/v1/brokers/kafka/events?limit=30'),
+  rabbitmqJobs: () => apiRequest('/api/v1/brokers/rabbitmq/jobs?limit=30'),
   cliStatus: () => apiRequest('/api/v1/cli/status'),
   cliPresets: () => apiRequest('/api/v1/cli/presets'),
   cliHistory: () => apiRequest('/api/v1/cli/history'),
@@ -144,6 +156,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ actor: 'electron-desktop', reason }),
     }),
+  vmCatalog: () => apiRequest('/api/v1/vms/catalog'),
   vmCompare: (criteria) =>
     apiRequest('/api/v1/vms/compare', { method: 'POST', body: JSON.stringify(criteria) }),
   vmProvision: (body) =>
@@ -152,6 +165,7 @@ export const api = {
     apiRequest('/api/v1/scans', { method: 'POST', body: JSON.stringify(body) }),
   listScans: () => apiRequest('/api/v1/scans'),
   scanSarif: (id) => apiRequest(`/api/v1/scans/${encodeURIComponent(id)}/sarif`),
+  opaPolicies: () => apiRequest('/api/v1/policies/opa'),
   rbacPlan: (body) =>
     apiRequest('/api/v1/rbac/powershell-plan', { method: 'POST', body: JSON.stringify(body) }),
   destroyPreview: (envId) =>
@@ -161,9 +175,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  environments: () => apiRequest('/api/v1/environments'),
   botStatus: () => apiRequest('/api/v1/bot/status'),
   botBill: () => apiRequest('/api/v1/bot/bill'),
+  botGuardrails: () => apiRequest('/api/v1/bot/guardrails'),
+  botUpdateGuardrails: (body) =>
+    apiRequest('/api/v1/bot/guardrails', { method: 'PUT', body: JSON.stringify(body) }),
+  botDirectives: () => apiRequest('/api/v1/bot/directives'),
+  botUpdateDirectives: (body) =>
+    apiRequest('/api/v1/bot/directives', { method: 'PUT', body: JSON.stringify(body) }),
   botSelfPrompt: (customPrompt) =>
     apiRequest('/api/v1/bot/self-prompt/run', {
       method: 'POST',
@@ -171,5 +190,34 @@ export const api = {
     }),
   botPrompt: (prompt) =>
     apiRequest('/api/v1/bot/prompt', { method: 'POST', body: JSON.stringify({ prompt }) }),
-  kafkaEvents: () => apiRequest('/api/v1/brokers/kafka/events?limit=25'),
+  iacWorkspaces: () => apiRequest('/api/v1/iac/workspaces'),
+  iacTerraformGenerate: (body) =>
+    apiRequest('/api/v1/iac/terraform/generate', { method: 'POST', body: JSON.stringify(body) }),
+  iacTerraformBuild: (body) =>
+    apiRequest('/api/v1/iac/terraform/build', { method: 'POST', body: JSON.stringify(body) }),
+  iacTerraformRun: (body) =>
+    apiRequest('/api/v1/iac/terraform/run', { method: 'POST', body: JSON.stringify(body) }),
+  iacDevSecOpsGraph: (body) =>
+    apiRequest('/api/v1/iac/graph/devsecops', { method: 'POST', body: JSON.stringify(body) }),
+  scriptBundles: () => apiRequest('/api/v1/scripts/bundles'),
+  scriptWriteAnsible: (body) =>
+    apiRequest('/api/v1/scripts/ansible/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteHelm: (body) =>
+    apiRequest('/api/v1/scripts/helm/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteCicd: (body) =>
+    apiRequest('/api/v1/scripts/cicd/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteContainer: (body) =>
+    apiRequest('/api/v1/scripts/container/generate', { method: 'POST', body: JSON.stringify(body) }),
+  securityMcpStatus: () => apiRequest('/api/v1/security/mcp/status'),
+  securityAssessments: () => apiRequest('/api/v1/security/assessments'),
+  securityAssessTrivy: (body) =>
+    apiRequest('/api/v1/security/assess/trivy', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessBandit: (body) =>
+    apiRequest('/api/v1/security/assess/bandit', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessSast: (body) =>
+    apiRequest('/api/v1/security/assess/sast', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessDast: (body) =>
+    apiRequest('/api/v1/security/assess/dast', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessFull: (body) =>
+    apiRequest('/api/v1/security/assess/full', { method: 'POST', body: JSON.stringify(body) }),
 };

@@ -2,8 +2,15 @@ import { api, mcpCall } from '../api/client.js';
 import { cloudTag, esc, exportOrCopy, prettyJson, statusTag } from '../utils/format.js';
 
 let selectedProvider = 'az';
-let transportMode = 'mcp'; // 'mcp' or 'rest'
+let transportMode = 'mcp';
+let outputTab = 'json'; // 'json' | 'raw' | 'guardrail' | 'snippet'
 let lastResult = null;
+
+export function setSelectedCliProvider(provider) {
+  if (['az', 'gcloud', 'aws'].includes(provider)) {
+    selectedProvider = provider;
+  }
+}
 
 function parseArgString(raw) {
   const tokens = [];
@@ -13,6 +20,46 @@ function parseArgString(raw) {
     tokens.push(match[1] ?? match[2] ?? match[3]);
   }
   return tokens;
+}
+
+function renderOutputContent(result, provider) {
+  if (!result) {
+    return 'Select a curated recipe or type CLI subcommand arguments and click Execute.';
+  }
+  if (outputTab === 'raw') {
+    const out = result.stdout ? `STDOUT:\n${result.stdout}` : 'STDOUT: (empty)';
+    const err = result.stderr ? `\n\nSTDERR:\n${result.stderr}` : '';
+    return `${out}${err}`;
+  }
+  if (outputTab === 'guardrail') {
+    return prettyJson({
+      execution_id: result.execution_id,
+      command_preview: result.command_preview,
+      mode: result.mode,
+      risk_tier: result.risk_tier,
+      exit_code: result.exit_code,
+      duration_ms: result.duration_ms,
+      binary_installed: result.binary_installed,
+      binary_path: result.binary_path,
+      guardrail: result.guardrail,
+    });
+  }
+  if (outputTab === 'snippet') {
+    const tool = provider === 'az' ? 'aegis_az_cli' : provider === 'gcloud' ? 'aegis_gcp_cli' : 'aegis_aws_cli';
+    return prettyJson({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: tool,
+        arguments: {
+          args: (result.command || []).slice(1).filter((a) => !['--output', 'json', '--format=json'].includes(a)),
+          dry_run: result.mode === 'dry_run',
+        },
+      },
+    });
+  }
+  return prettyJson(result.parsed_json ?? result);
 }
 
 export async function renderCloudCli(container, ctx) {
@@ -30,7 +77,7 @@ export async function renderCloudCli(container, ctx) {
       <div>
         <h1>Cloud CLI Studio</h1>
         <p class="view-subtitle">
-          Execute guardrailed Azure (<code>az</code>), GCP (<code>gcloud</code>), and AWS (<code>aws</code>) commands through REST or MCP JSON-RPC wrappers.
+          Guardrailed native terminal for Azure (<code>az</code>), GCP (<code>gcloud</code>), and AWS (<code>aws</code>) over MCP JSON-RPC 2.0 or REST.
         </p>
       </div>
       <div class="header-actions">
@@ -40,9 +87,10 @@ export async function renderCloudCli(container, ctx) {
           <button type="button" class="tab-btn ${selectedProvider === 'aws' ? 'active' : ''}" id="cli-tab-aws" data-provider="aws">AWS · aws</button>
         </div>
         <div class="tab-bar" role="group" aria-label="Invocation transport">
-          <button type="button" class="tab-btn ${transportMode === 'mcp' ? 'active' : ''}" id="cli-via-mcp" data-transport="mcp">Via MCP</button>
-          <button type="button" class="tab-btn ${transportMode === 'rest' ? 'active' : ''}" id="cli-via-rest" data-transport="rest">Via REST</button>
+          <button type="button" class="tab-btn ${transportMode === 'mcp' ? 'active' : ''}" id="cli-via-mcp" data-transport="mcp">MCP Tool</button>
+          <button type="button" class="tab-btn ${transportMode === 'rest' ? 'active' : ''}" id="cli-via-rest" data-transport="rest">REST API</button>
         </div>
+        <button type="button" class="btn" id="btn-cli-popout">Pop Out Window</button>
       </div>
     </div>
 
@@ -69,78 +117,80 @@ export async function renderCloudCli(container, ctx) {
             .join('')}
         </div>
 
-        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border-subtle)">
-          <div class="panel-meta" style="margin-bottom:6px">GUARDRAIL TESTS (TRY BLOCKED OPS)</div>
-          <div style="display:flex; flex-direction:column; gap:6px">
-            <button type="button" class="btn btn-danger btn-xs" id="btn-test-injection">
-              Test Shell Injection Block
-            </button>
-            <button type="button" class="btn btn-danger btn-xs" id="btn-test-prod-delete">
-              Test Production Delete Block
-            </button>
+        <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border-subtle)">
+          <div class="panel-meta" style="margin-bottom:6px">ALLOWED SERVICE NAMESPACES</div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px">
+            ${(provMeta.allowed_namespaces || [])
+              .slice(0, 12)
+              .map((ns) => `<span class="tag">${esc(ns)}</span>`)
+              .join('')}
+          </div>
+          <div class="panel-meta" style="margin-bottom:6px">SECURITY GUARDRAIL VERIFICATION</div>
+          <div style="display:flex; flex-direction:column; gap:5px">
+            <button type="button" class="btn btn-danger btn-xs" id="btn-test-injection">Test Shell Injection Block</button>
+            <button type="button" class="btn btn-danger btn-xs" id="btn-test-secret">Test Secret Exfiltration Block</button>
+            <button type="button" class="btn btn-danger btn-xs" id="btn-test-prod-delete">Test Production Delete Block</button>
           </div>
         </div>
       </section>
 
-      <div style="display:flex; flex-direction:column; gap:16px">
+      <div style="display:flex; flex-direction:column; gap:14px">
         <section class="panel">
           <div class="panel-head">
-            <h2 class="panel-title">Command Runner (${esc(selectedProvider)})</h2>
-            <div style="display:flex; gap:8px; align-items:center">
+            <h2 class="panel-title">Argv Command Builder (${esc(selectedProvider)})</h2>
+            <div style="display:flex; gap:6px; align-items:center">
               ${statusTag(provMeta.execution_mode || 'simulation')}
-              <span class="panel-meta">${provMeta.installed ? 'Binary on PATH' : 'Simulation fallback'}</span>
+              <span class="panel-meta">${provMeta.installed ? `PATH: ${esc(provMeta.path)}` : 'Zero-shell simulator active'}</span>
             </div>
           </div>
 
           <div class="field-grid">
             <div class="field" style="grid-column: span 2">
-              <label for="cli-args-input">Subcommand Arguments (zero shell interpolation)</label>
+              <label for="cli-args-input">Command Tokens (strict argv — shell interpolation disabled)</label>
               <input
                 id="cli-args-input"
                 class="input"
                 type="text"
                 value="${esc(filteredPresets[0]?.args.join(' ') || 'version')}"
-                placeholder="e.g. vm list  |  compute instances list  |  ec2 describe-instances"
+                placeholder="e.g. vm list | compute instances list | ec2 describe-instances"
               />
             </div>
             <div class="field">
-              <label for="cli-scope-input">${selectedProvider === 'az' ? 'Subscription' : selectedProvider === 'gcloud' ? 'GCP Project' : 'AWS Profile / Region'}</label>
-              <input id="cli-scope-input" class="input" type="text" placeholder="Optional override" />
+              <label for="cli-scope-input">${selectedProvider === 'az' ? 'Subscription ID' : selectedProvider === 'gcloud' ? 'GCP Project ID' : 'AWS Region'}</label>
+              <input id="cli-scope-input" class="input" type="text" placeholder="Optional scope override" />
             </div>
           </div>
 
           <div class="check-row">
-            <label class="check-item">
-              <input type="checkbox" id="cli-dry-run" />
-              <span>Dry-Run Preview</span>
-            </label>
-            <label class="check-item">
-              <input type="checkbox" id="cli-allow-destructive" />
-              <span>Allow Ephemeral Destructive</span>
-            </label>
+            <label class="check-item"><input type="checkbox" id="cli-dry-run" /><span>Dry-Run Preview</span></label>
+            <label class="check-item"><input type="checkbox" id="cli-allow-destructive" /><span>Allow Ephemeral Destructive</span></label>
             <button type="button" class="btn btn-primary" id="btn-cli-run" style="margin-left:auto">
-              Execute ${esc(selectedProvider)} (${transportMode.toUpperCase()})
+              Run ${esc(selectedProvider)} via ${transportMode.toUpperCase()}
             </button>
           </div>
 
           <div class="terminal-box">
             <div class="terminal-bar">
-              <span id="cli-output-cmd">${esc(lastResult?.command_preview || `${selectedProvider} ready`)}</span>
-              <div style="display:flex; gap:8px; align-items:center">
-                <span id="cli-output-status">${lastResult ? statusTag(lastResult.mode) : ''}</span>
-                <button type="button" class="btn-ghost btn-xs" id="btn-cli-export">Export JSON</button>
+              <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap">
+                <button type="button" class="btn-ghost btn-xs ${outputTab === 'json' ? 'tag-accent' : ''}" data-out-tab="json">Parsed JSON</button>
+                <button type="button" class="btn-ghost btn-xs ${outputTab === 'raw' ? 'tag-accent' : ''}" data-out-tab="raw">Raw stdout/stderr</button>
+                <button type="button" class="btn-ghost btn-xs ${outputTab === 'guardrail' ? 'tag-accent' : ''}" data-out-tab="guardrail">Guardrail Policy</button>
+                <button type="button" class="btn-ghost btn-xs ${outputTab === 'snippet' ? 'tag-accent' : ''}" data-out-tab="snippet">MCP JSON-RPC</button>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center">
+                <span class="mono">${esc(lastResult?.duration_ms != null ? `${lastResult.duration_ms}ms` : '')}</span>
+                ${lastResult ? statusTag(lastResult.mode) : ''}
+                <button type="button" class="btn-ghost btn-xs" id="btn-cli-export">Save / Copy</button>
               </div>
             </div>
-            <pre class="terminal-pre" id="cli-output-pre">${esc(
-              lastResult ? prettyJson(lastResult) : 'Select a curated recipe or type arguments and press Execute.'
-            )}</pre>
+            <pre class="terminal-pre" id="cli-output-pre">${esc(renderOutputContent(lastResult, selectedProvider))}</pre>
           </div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
-            <h2 class="panel-title">Audited CLI Execution History</h2>
-            <span class="panel-meta">${history.length} recent calls</span>
+            <h2 class="panel-title">Audited CLI Execution Ledger</h2>
+            <span class="panel-meta">Click any row to inspect or replay</span>
           </div>
           <table class="data-table">
             <thead>
@@ -156,12 +206,12 @@ export async function renderCloudCli(container, ctx) {
             <tbody>
               ${
                 history.length === 0
-                  ? '<tr><td colspan="6" class="panel-meta">No CLI executions recorded in this session yet.</td></tr>'
+                  ? '<tr><td colspan="6" class="panel-meta">No CLI executions recorded yet.</td></tr>'
                   : history
-                      .slice(0, 10)
+                      .slice(0, 12)
                       .map(
-                        (h) => `
-                          <tr>
+                        (h, idx) => `
+                          <tr data-hist-idx="${idx}">
                             <td>${cloudTag(h.provider)}</td>
                             <td class="mono">${esc(h.command_preview)}</td>
                             <td>${statusTag(h.risk_tier)}</td>
@@ -196,16 +246,8 @@ export async function renderCloudCli(container, ctx) {
       let result;
       if (transportMode === 'mcp') {
         const toolName =
-          selectedProvider === 'az'
-            ? 'aegis_az_cli'
-            : selectedProvider === 'gcloud'
-              ? 'aegis_gcp_cli'
-              : 'aegis_aws_cli';
-        const toolArgs = {
-          args,
-          dry_run: dryRun,
-          allow_destructive: allowDestructive,
-        };
+          selectedProvider === 'az' ? 'aegis_az_cli' : selectedProvider === 'gcloud' ? 'aegis_gcp_cli' : 'aegis_aws_cli';
+        const toolArgs = { args, dry_run: dryRun, allow_destructive: allowDestructive };
         if (scope) {
           if (selectedProvider === 'az') toolArgs.subscription = scope;
           else if (selectedProvider === 'gcloud') toolArgs.project = scope;
@@ -225,6 +267,7 @@ export async function renderCloudCli(container, ctx) {
         });
       }
       lastResult = result;
+      ctx.inspectEntity('CLI Execution', result.command_preview, result);
       ctx.pushLocalEvent(
         result.guardrail?.allowed ? 'cli.executed' : 'cli.blocked',
         `${result.command_preview} -> exit ${result.exit_code} (${result.mode})`
@@ -254,22 +297,41 @@ export async function renderCloudCli(container, ctx) {
     });
   });
 
+  container.querySelectorAll('[data-out-tab]').forEach((el) => {
+    el.addEventListener('click', () => {
+      outputTab = el.dataset.outTab;
+      renderCloudCli(container, ctx);
+    });
+  });
+
+  container.querySelector('#btn-cli-popout')?.addEventListener('click', () => ctx.openPopout('cloud-cli'));
+
   container.querySelectorAll('[data-preset-args]').forEach((el) => {
     el.addEventListener('click', () => {
       const argStr = el.dataset.presetArgs;
-      const input = container.querySelector('#cli-args-input');
-      if (input) input.value = argStr;
+      container.querySelector('#cli-args-input').value = argStr;
       runArgs(argStr);
     });
   });
 
   container.querySelector('#btn-cli-run')?.addEventListener('click', () => {
-    const val = container.querySelector('#cli-args-input').value;
-    runArgs(val);
+    runArgs(container.querySelector('#cli-args-input').value);
   });
 
-  container.querySelector('#btn-test-injection')?.addEventListener('click', () => {
-    runArgs('account show; rm -rf /');
+  container.querySelector('#cli-args-input')?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') runArgs(ev.target.value);
+  });
+
+  container.querySelector('#btn-test-injection')?.addEventListener('click', () => runArgs('account show; rm -rf /'));
+
+  container.querySelector('#btn-test-secret')?.addEventListener('click', () => {
+    const cmd =
+      selectedProvider === 'az'
+        ? 'keyvault secret show --vault-name prod-kv --name db-pass'
+        : selectedProvider === 'gcloud'
+          ? 'auth print-access-token'
+          : 'secretsmanager get-secret-value --secret-id prod/db';
+    runArgs(cmd);
   });
 
   container.querySelector('#btn-test-prod-delete')?.addEventListener('click', () => {
@@ -280,6 +342,16 @@ export async function renderCloudCli(container, ctx) {
           ? 'compute instances delete gce-prod-core-01'
           : 'ec2 terminate-instances --instance-ids prod-01';
     runArgs(cmd, { allow_destructive: true, dry_run: false });
+  });
+
+  container.querySelectorAll('[data-hist-idx]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const item = history[Number(row.dataset.histIdx)];
+      if (!item) return;
+      lastResult = item;
+      ctx.inspectEntity('CLI Audit Record', item.command_preview, item);
+      renderCloudCli(container, ctx);
+    });
   });
 
   container.querySelector('#btn-cli-export')?.addEventListener('click', () => {

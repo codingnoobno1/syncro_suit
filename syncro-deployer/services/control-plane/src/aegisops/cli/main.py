@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -26,6 +27,15 @@ from aegisops.domain.models import (
     VmSelectionCriteria,
     WorkloadProfile,
 )
+from aegisops.iac.models import (
+    AnsibleGenerateRequest,
+    CicdGenerateRequest,
+    ContainerGenerateRequest,
+    HelmGenerateRequest,
+    IacBlueprintKind,
+    TerraformGenerateRequest,
+    TerraformRunRequest,
+)
 from aegisops.mcp.server import AegisMcpServer
 from aegisops.syncro.models import (
     DeploymentStrategy,
@@ -45,6 +55,8 @@ vm_app = typer.Typer(help="Intelligent Multi-Cloud VM Selector, Comparator & Eph
 bot_app = typer.Typer(help="Guardrailed MCP Ops Bot (Launch VMs/K8s/Docker, Read Bills & Statuses, Self-Prompt).")
 cloud_app = typer.Typer(help="Inspect AWS, GCP, Azure status, FinOps spend & Drift checks.")
 cloud_cli_app = typer.Typer(help="Guardrailed Azure (az), GCP (gcloud), and AWS (aws) CLI Wrapper.")
+iac_app = typer.Typer(help="IaC Terraform Studio (generate/build/run/graph) & DevOps Script Writers (Ansible, Helm, CI/CD, Container).")
+sec_app = typer.Typer(help="Security Assessment MCP CLI (Trivy, Bandit, Multi-Lang SAST, OWASP DAST, Full DevSecOps Audit).")
 infra_app = typer.Typer(help="Terraform & Ansible multi-cloud infrastructure operations.")
 k8s_app = typer.Typer(help="Launch and inspect OPA-hardened Kubernetes workloads (EKS/GKE/AKS).")
 destroy_app = typer.Typer(help="Quick Destruction blast-radius preview & kill-switch.")
@@ -58,6 +70,8 @@ app.add_typer(vm_app, name="vm")
 app.add_typer(bot_app, name="bot")
 app.add_typer(cloud_app, name="cloud")
 app.add_typer(cloud_cli_app, name="cloud-cli")
+app.add_typer(iac_app, name="iac")
+app.add_typer(sec_app, name="sec")
 app.add_typer(infra_app, name="infra")
 app.add_typer(k8s_app, name="k8s")
 app.add_typer(destroy_app, name="destroy")
@@ -539,3 +553,287 @@ def cloud_cli_exec(
     )
     res = asyncio.run(platform.cloud_cli.execute(req))
     console.print_json(res.model_dump_json())
+
+
+# =============================================================================
+# IaC Terraform Studio, DevSecOps Graph & Script Writers (`syncro iac ...`)
+# =============================================================================
+@iac_app.command("tf-generate")
+def iac_tf_generate_cmd(
+    name: Annotated[str, typer.Option("--name", "-n")] = "syncro-workload",
+    cloud: Annotated[str, typer.Option("--cloud", "-c", help="aws | gcp | azure")] = "aws",
+    blueprint: Annotated[str, typer.Option("--blueprint", "-b", help="vpc-k8s | hardened-vm | serverless-api | zero-trust-mesh | data-platform")] = "vpc-k8s",
+    region: Annotated[str | None, typer.Option("--region", "-r")] = None,
+    environment: Annotated[str, typer.Option("--env", "-e")] = "staging",
+    output_dir: Annotated[str | None, typer.Option("--out", "-o")] = None,
+    write: Annotated[bool, typer.Option("--write/--no-write")] = True,
+) -> None:
+    """Generate production-hardened multi-file Terraform HCL for AWS, GCP, or Azure."""
+    platform = build_platform()
+    req = TerraformGenerateRequest(
+        project_name=name,
+        cloud=CloudProvider(cloud.lower()),
+        blueprint=IacBlueprintKind(blueprint.lower()),
+        region=region,
+        environment=environment,
+        write_to_disk=write,
+        output_dir=output_dir,
+    )
+    bundle = platform.iac_studio.generate(req)
+    console.print_json(bundle.model_dump_json())
+
+
+@iac_app.command("tf-build")
+def iac_tf_build_cmd(
+    workspace_dir: Annotated[str | None, typer.Option("--dir", "-d")] = None,
+    workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w")] = None,
+) -> None:
+    """Build and validate Terraform HCL (init, fmt check, validate, resource extraction)."""
+    platform = build_platform()
+    res = asyncio.run(platform.iac_studio.build(workspace_id=workspace_id, workspace_dir=workspace_dir))
+    console.print_json(res.model_dump_json())
+    if not res.validate_ok:
+        raise typer.Exit(code=1)
+
+
+@iac_app.command("tf-run")
+def iac_tf_run_cmd(
+    workspace_dir: Annotated[str | None, typer.Option("--dir", "-d")] = None,
+    workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w")] = None,
+    action: Annotated[str, typer.Option("--action", "-a", help="plan | apply | destroy")] = "plan",
+    dry_run: Annotated[bool, typer.Option("--dry-run/--execute")] = True,
+    auto_approve: Annotated[bool, typer.Option("--auto-approve")] = False,
+    environment: Annotated[str, typer.Option("--env", "-e")] = "staging",
+) -> None:
+    """Run guardrailed Terraform plan/apply/destroy and generate its DevSecOps graph."""
+    platform = build_platform()
+    req = TerraformRunRequest(
+        workspace_id=workspace_id,
+        workspace_dir=workspace_dir,
+        action=action,
+        dry_run=dry_run,
+        auto_approve=auto_approve,
+        environment=environment,
+    )
+    res = asyncio.run(platform.iac_studio.run(req))
+    console.print_json(res.model_dump_json())
+    if not res.guardrail_allowed or res.exit_code != 0:
+        raise typer.Exit(code=2)
+
+
+@iac_app.command("graph")
+def iac_graph_cmd(
+    workspace_dir: Annotated[str | None, typer.Option("--dir", "-d")] = None,
+    workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w")] = None,
+    fmt: Annotated[str, typer.Option("--format", "-f", help="mermaid | dot | ascii | json")] = "mermaid",
+) -> None:
+    """Emit a DevSecOps architecture & security dependency graph (Mermaid, DOT, ASCII, JSON)."""
+    platform = build_platform()
+    target_dir = workspace_dir or str(platform.settings.terraform_dir)
+    graph = platform.iac_studio.build_graph(workspace_id=workspace_id, workspace_dir=target_dir)
+    f = fmt.lower()
+    if f == "mermaid":
+        console.print(graph.mermaid)
+    elif f == "dot":
+        console.print(graph.dot)
+    elif f == "ascii":
+        console.print(graph.ascii_summary)
+    else:
+        console.print_json(graph.model_dump_json())
+
+
+@iac_app.command("ansible")
+def iac_ansible_cmd(
+    service: Annotated[str, typer.Option("--service", "-s")] = "syncro-edge",
+    cloud: Annotated[str, typer.Option("--cloud", "-c")] = "aws",
+    profile: Annotated[str, typer.Option("--profile", "-p", help="cis-l1 | cis-l2 | pci-dss | zero-trust")] = "cis-l2",
+    output_dir: Annotated[str | None, typer.Option("--out", "-o")] = None,
+    write: Annotated[bool, typer.Option("--write/--no-write")] = True,
+) -> None:
+    """Generate a hardened Ansible CIS/Zero-Trust playbook, role, and inventory bundle."""
+    platform = build_platform()
+    req = AnsibleGenerateRequest(
+        service_name=service,
+        cloud=CloudProvider(cloud.lower()),
+        hardening_profile=profile,
+        write_to_disk=write,
+        output_dir=output_dir,
+    )
+    console.print_json(platform.script_writers.generate_ansible(req).model_dump_json())
+
+
+@iac_app.command("helm")
+def iac_helm_cmd(
+    chart: Annotated[str, typer.Option("--chart", "-n")] = "syncro-service",
+    image: Annotated[str, typer.Option("--image", "-i")] = "ghcr.io/syncrosuite/syncro-api:1.0.0",
+    port: Annotated[int, typer.Option("--port")] = 8080,
+    replicas: Annotated[int, typer.Option("--replicas")] = 3,
+    cloud: Annotated[str, typer.Option("--cloud", "-c")] = "aws",
+    output_dir: Annotated[str | None, typer.Option("--out", "-o")] = None,
+    write: Annotated[bool, typer.Option("--write/--no-write")] = True,
+) -> None:
+    """Generate a Restricted Pod-Security Helm v3 chart with NetworkPolicy, HPA & PDB."""
+    platform = build_platform()
+    req = HelmGenerateRequest(
+        chart_name=chart,
+        image=image,
+        port=port,
+        replicas=replicas,
+        cloud=CloudProvider(cloud.lower()),
+        write_to_disk=write,
+        output_dir=output_dir,
+    )
+    console.print_json(platform.script_writers.generate_helm(req).model_dump_json())
+
+
+@iac_app.command("cicd")
+def iac_cicd_cmd(
+    project: Annotated[str, typer.Option("--project", "-n")] = "syncro-service",
+    platform_name: Annotated[str, typer.Option("--platform", "-p", help="github-actions | gitlab-ci | azure-devops | jenkins")] = "github-actions",
+    language: Annotated[str, typer.Option("--language", "-l")] = "python",
+    cloud: Annotated[str, typer.Option("--cloud", "-c")] = "aws",
+    strategy: Annotated[str, typer.Option("--strategy")] = "canary",
+    output_dir: Annotated[str | None, typer.Option("--out", "-o")] = None,
+    write: Annotated[bool, typer.Option("--write/--no-write")] = True,
+) -> None:
+    """Generate a DevSecOps CI/CD pipeline integrated with Syncro CLI, Trivy, Bandit, SAST & DAST."""
+    platform = build_platform()
+    req = CicdGenerateRequest(
+        project_name=project,
+        platform=platform_name,
+        language=language,
+        cloud=CloudProvider(cloud.lower()),
+        deploy_strategy=strategy,
+        write_to_disk=write,
+        output_dir=output_dir,
+    )
+    console.print_json(platform.script_writers.generate_cicd(req).model_dump_json())
+
+
+@iac_app.command("container")
+def iac_container_cmd(
+    service: Annotated[str, typer.Option("--service", "-s")] = "syncro-api",
+    language: Annotated[str, typer.Option("--language", "-l", help="python | node | go | java")] = "python",
+    port: Annotated[int, typer.Option("--port")] = 8080,
+    output_dir: Annotated[str | None, typer.Option("--out", "-o")] = None,
+    write: Annotated[bool, typer.Option("--write/--no-write")] = True,
+) -> None:
+    """Generate a hardened multi-stage non-root Dockerfile & .dockerignore."""
+    platform = build_platform()
+    req = ContainerGenerateRequest(
+        service_name=service,
+        language=language,
+        port=port,
+        write_to_disk=write,
+        output_dir=output_dir,
+    )
+    console.print_json(platform.script_writers.generate_container(req).model_dump_json())
+
+
+# =============================================================================
+# Security Assessment MCP CLI (`syncro sec ...`: Trivy, Bandit, SAST, DAST)
+# =============================================================================
+@sec_app.command("status")
+def sec_status_cmd() -> None:
+    """Inspect installed Security & IaC MCP scanner binaries and guardrails."""
+    platform = build_platform()
+    console.print_json(json.dumps(platform.security_mcp.toolchain_status()))
+
+
+@sec_app.command("trivy")
+def sec_trivy_cmd(
+    path: Annotated[str | None, typer.Option("--path", "-p")] = None,
+    project: Annotated[str, typer.Option("--project")] = "syncro-workspace",
+    json_output: Annotated[bool, typer.Option("--json")] = True,
+) -> None:
+    """Run Trivy vulnerability, secret, Dockerfile, K8s/Helm, and IaC assessment."""
+    platform = build_platform()
+    target = Path(path) if path else platform.settings.repo_root
+    rep = asyncio.run(platform.security_mcp.run_trivy(target_path=target, project_id=project))
+    if json_output:
+        console.print_json(rep.model_dump_json())
+    else:
+        console.print(f"[bold]Trivy Assessment[/bold]: Grade={rep.grade} Score={rep.compliance_score}/100 Findings={len(rep.findings)}")
+
+
+@sec_app.command("bandit")
+def sec_bandit_cmd(
+    path: Annotated[str | None, typer.Option("--path", "-p")] = None,
+    project: Annotated[str, typer.Option("--project")] = "syncro-workspace",
+    json_output: Annotated[bool, typer.Option("--json")] = True,
+) -> None:
+    """Run Bandit Python AST security assessment."""
+    platform = build_platform()
+    target = Path(path) if path else platform.settings.repo_root
+    rep = asyncio.run(platform.security_mcp.run_bandit(target_path=target, project_id=project))
+    if json_output:
+        console.print_json(rep.model_dump_json())
+    else:
+        console.print(f"[bold]Bandit Assessment[/bold]: Grade={rep.grade} Score={rep.compliance_score}/100 Findings={len(rep.findings)}")
+
+
+@sec_app.command("sast")
+def sec_sast_cmd(
+    path: Annotated[str | None, typer.Option("--path", "-p")] = None,
+    project: Annotated[str, typer.Option("--project")] = "syncro-workspace",
+    json_output: Annotated[bool, typer.Option("--json")] = True,
+) -> None:
+    """Run multi-language OWASP Top 10 SAST security assessment."""
+    platform = build_platform()
+    target = Path(path) if path else platform.settings.repo_root
+    rep = asyncio.run(platform.security_mcp.run_sast(target_path=target, project_id=project))
+    if json_output:
+        console.print_json(rep.model_dump_json())
+    else:
+        console.print(f"[bold]SAST Assessment[/bold]: Grade={rep.grade} Score={rep.compliance_score}/100 Findings={len(rep.findings)}")
+
+
+@sec_app.command("dast")
+def sec_dast_cmd(
+    url: Annotated[str, typer.Option("--url", "-u")] = "http://127.0.0.1:8080/api/v1/health",
+    project: Annotated[str, typer.Option("--project")] = "syncro-workspace",
+    live: Annotated[bool, typer.Option("--live/--simulate")] = True,
+    json_output: Annotated[bool, typer.Option("--json")] = True,
+) -> None:
+    """Run non-destructive OWASP DAST baseline assessment against a target HTTP/HTTPS URL."""
+    platform = build_platform()
+    rep = asyncio.run(platform.security_mcp.run_dast(target_url=url, project_id=project, live_probe=live))
+    if json_output:
+        console.print_json(rep.model_dump_json())
+    else:
+        console.print(f"[bold]DAST Assessment[/bold]: Grade={rep.grade} Score={rep.compliance_score}/100 Probes={len(rep.dast_probes)}")
+
+
+@sec_app.command("assess")
+def sec_full_assess_cmd(
+    path: Annotated[str | None, typer.Option("--path", "-p")] = None,
+    url: Annotated[str | None, typer.Option("--url", "-u")] = None,
+    project: Annotated[str, typer.Option("--project")] = "payments-core",
+    sarif_out: Annotated[str | None, typer.Option("--sarif-out")] = None,
+    json_output: Annotated[bool, typer.Option("--json")] = True,
+) -> None:
+    """Run unified DevSecOps assessment (Trivy + Bandit + SAST + IaC + optional DAST + OPA + SARIF + Graph)."""
+    platform = build_platform()
+    target = Path(path) if path else platform.settings.repo_root
+    rep = asyncio.run(
+        platform.security_mcp.run_full_assessment(
+            project_id=project,
+            target_path=target,
+            target_url=url,
+            include_dast=bool(url),
+            include_graph=True,
+        )
+    )
+    if sarif_out and rep.sarif:
+        Path(sarif_out).write_text(json.dumps(rep.sarif, indent=2), encoding="utf-8")
+    if json_output:
+        console.print_json(rep.model_dump_json())
+    else:
+        console.print(
+            Panel(
+                f"Grade: [bold]{rep.grade}[/bold]  Score: [bold]{rep.compliance_score}/100[/bold]\n"
+                f"OPA Allowed: {rep.opa_gate.allowed}  Findings: {len(rep.findings)}\n"
+                f"{rep.devsecops_graph.ascii_summary if rep.devsecops_graph else ''}",
+                title="Syncro Security MCP Assessment",
+            )
+        )

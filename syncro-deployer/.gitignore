@@ -56,8 +56,9 @@ apps/syncro-desktop/build/
 apps/syncro-desktop/.flutter-plugins
 apps/syncro-desktop/.flutter-plugins-dependencies
 
-# SQLite WAL Runtime State
+# SQLite WAL Runtime State & Generated IaC Bundles
 *.db
 *.db-wal
 *.db-shm
+.syncro-generated/
 
