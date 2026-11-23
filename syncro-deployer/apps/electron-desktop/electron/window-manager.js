@@ -6,11 +6,12 @@ const { app, BrowserWindow, screen } = require('electron');
 
 const POPOUT_TITLES = {
   'cloud-cli': 'Syncro Cloud CLI Studio (az · gcloud · aws)',
-  mcp: 'Syncro MCP Tool Console (34 Tools)',
+  mcp: 'Syncro MCP Tool Console (48 Tools)',
   deployer: 'Syncro Deployer Pipeline',
   'vm-finops': 'Syncro Multi-Cloud VM & FinOps Matrix',
   security: 'Syncro DevSecOps & Quick Destroy',
   bot: 'Syncro Guardrailed Ops Bot',
+  'iac-studio': 'Syncro IaC Terraform Studio, Script Writers & Security MCP',
   telemetry: 'Syncro Live Telemetry & Audit Stream',
 };
 

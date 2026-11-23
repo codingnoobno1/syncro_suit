@@ -3,7 +3,7 @@
 const os = require('node:os');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
-const { BrowserWindow, Menu, ipcMain, dialog, Notification, shell } = require('node:electron');
+const { BrowserWindow, Menu, ipcMain, dialog, Notification, shell } = require('electron');
 const { resolveNativeLibraryPath } = require('./native-bridge');
 
 const TRACKED_CLIS = [

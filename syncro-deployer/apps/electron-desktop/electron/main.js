@@ -52,8 +52,12 @@ function createTray() {
           click: () => windowManager.openPopoutWindow('cloud-cli'),
         },
         {
-          label: 'Pop Out MCP Tool Console (34 Tools)',
+          label: 'Pop Out MCP Tool Console (48 Tools)',
           click: () => windowManager.openPopoutWindow('mcp'),
+        },
+        {
+          label: 'Pop Out IaC Studio & Security MCP',
+          click: () => windowManager.openPopoutWindow('iac-studio'),
         },
         {
           label: 'Pop Out Live Telemetry Monitor',

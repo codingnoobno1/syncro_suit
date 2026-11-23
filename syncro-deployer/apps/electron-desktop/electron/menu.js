@@ -80,6 +80,7 @@ function installApplicationMenu({ windowManager }) {
         { label: 'VM & FinOps Matrix', accelerator: 'CmdOrCtrl+5', click: () => send('navigate', { view: 'vm-finops' }) },
         { label: 'DevSecOps & Destroy', accelerator: 'CmdOrCtrl+6', click: () => send('navigate', { view: 'security' }) },
         { label: 'Guardrailed Ops Bot', accelerator: 'CmdOrCtrl+7', click: () => send('navigate', { view: 'bot' }) },
+        { label: 'IaC Studio & Security MCP', accelerator: 'CmdOrCtrl+8', click: () => send('navigate', { view: 'iac-studio' }) },
         { type: 'separator' },
         { label: 'Toggle Explorer Sidebar', accelerator: 'CmdOrCtrl+B', click: () => send('toggle-explorer') },
         { label: 'Toggle Right Inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => send('toggle-inspector') },

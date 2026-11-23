@@ -190,4 +190,34 @@ export const api = {
     }),
   botPrompt: (prompt) =>
     apiRequest('/api/v1/bot/prompt', { method: 'POST', body: JSON.stringify({ prompt }) }),
+  iacWorkspaces: () => apiRequest('/api/v1/iac/workspaces'),
+  iacTerraformGenerate: (body) =>
+    apiRequest('/api/v1/iac/terraform/generate', { method: 'POST', body: JSON.stringify(body) }),
+  iacTerraformBuild: (body) =>
+    apiRequest('/api/v1/iac/terraform/build', { method: 'POST', body: JSON.stringify(body) }),
+  iacTerraformRun: (body) =>
+    apiRequest('/api/v1/iac/terraform/run', { method: 'POST', body: JSON.stringify(body) }),
+  iacDevSecOpsGraph: (body) =>
+    apiRequest('/api/v1/iac/graph/devsecops', { method: 'POST', body: JSON.stringify(body) }),
+  scriptBundles: () => apiRequest('/api/v1/scripts/bundles'),
+  scriptWriteAnsible: (body) =>
+    apiRequest('/api/v1/scripts/ansible/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteHelm: (body) =>
+    apiRequest('/api/v1/scripts/helm/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteCicd: (body) =>
+    apiRequest('/api/v1/scripts/cicd/generate', { method: 'POST', body: JSON.stringify(body) }),
+  scriptWriteContainer: (body) =>
+    apiRequest('/api/v1/scripts/container/generate', { method: 'POST', body: JSON.stringify(body) }),
+  securityMcpStatus: () => apiRequest('/api/v1/security/mcp/status'),
+  securityAssessments: () => apiRequest('/api/v1/security/assessments'),
+  securityAssessTrivy: (body) =>
+    apiRequest('/api/v1/security/assess/trivy', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessBandit: (body) =>
+    apiRequest('/api/v1/security/assess/bandit', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessSast: (body) =>
+    apiRequest('/api/v1/security/assess/sast', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessDast: (body) =>
+    apiRequest('/api/v1/security/assess/dast', { method: 'POST', body: JSON.stringify(body) }),
+  securityAssessFull: (body) =>
+    apiRequest('/api/v1/security/assess/full', { method: 'POST', body: JSON.stringify(body) }),
 };

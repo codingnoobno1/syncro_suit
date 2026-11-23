@@ -3,6 +3,7 @@ import { cloudTag, esc, prettyJson, statusTag } from './utils/format.js';
 import { renderBotStudio } from './views/bot-studio.js';
 import { renderCloudCli, setSelectedCliProvider } from './views/cloud-cli.js';
 import { renderDeployer } from './views/deployer.js';
+import { renderIacStudio } from './views/iac-studio.js';
 import { renderMcpConsole } from './views/mcp-console.js';
 import { renderOverview } from './views/overview.js';
 import { renderSecurityOps } from './views/security-ops.js';
@@ -16,6 +17,7 @@ const VIEWS = {
   'vm-finops': { title: 'VM & FinOps Matrix', short: 'VM Matrix', render: renderVmFinops },
   security: { title: 'DevSecOps & Destroy', short: 'DevSecOps', render: renderSecurityOps },
   bot: { title: 'Guardrailed Ops Bot', short: 'Ops Bot', render: renderBotStudio },
+  'iac-studio': { title: 'IaC Studio & Security MCP', short: 'IaC Studio', render: renderIacStudio },
 };
 
 const params = new URLSearchParams(window.location.search);
@@ -293,6 +295,7 @@ async function renderExplorerTree() {
       <button type="button" class="tree-section-head"><span>Detached Windows</span><span>&#9662;</span></button>
       <div class="tree-items">
         <button type="button" class="tree-row" data-tree-pop="cloud-cli"><span class="tree-row-name">Pop Out Cloud CLI Terminal</span><span class="panel-meta">&#8599;</span></button>
+        <button type="button" class="tree-row" data-tree-pop="iac-studio"><span class="tree-row-name">Pop Out IaC &amp; Security Studio</span><span class="panel-meta">&#8599;</span></button>
         <button type="button" class="tree-row" data-tree-pop="mcp"><span class="tree-row-name">Pop Out MCP Console</span><span class="panel-meta">&#8599;</span></button>
         <button type="button" class="tree-row" data-tree-pop="telemetry"><span class="tree-row-name">Pop Out Live Telemetry</span><span class="panel-meta">&#8599;</span></button>
         <button type="button" class="tree-row" data-tree-pop="deployer"><span class="tree-row-name">Pop Out Deployer</span><span class="panel-meta">&#8599;</span></button>
@@ -645,6 +648,7 @@ function renderPaletteRows(query) {
   const items = [
     ...Object.entries(VIEWS).map(([id, v]) => ({ label: `Open ${v.title}`, category: 'View', run: () => navigate(id) })),
     { label: 'Pop Out Cloud CLI Terminal (Separate Window)', category: 'Window', run: () => openPopout('cloud-cli') },
+    { label: 'Pop Out IaC Terraform Studio & Security MCP', category: 'Window', run: () => openPopout('iac-studio') },
     { label: 'Pop Out MCP Tool Console (Separate Window)', category: 'Window', run: () => openPopout('mcp') },
     { label: 'Pop Out Live Telemetry Monitor (Separate Window)', category: 'Window', run: () => openPopout('telemetry', { width: 920, height: 520, alwaysOnTop: true }) },
     { label: 'Azure CLI (az) Studio', category: 'Cloud CLI', run: () => openCliProvider('az') },
@@ -793,7 +797,7 @@ async function bootstrap() {
       ev.preventDefault();
       state.inspectorHidden = !state.inspectorHidden;
       applyPaneClasses();
-    } else if (mod && ['1', '2', '3', '4', '5', '6', '7'].includes(ev.key)) {
+    } else if (mod && ['1', '2', '3', '4', '5', '6', '7', '8'].includes(ev.key)) {
       ev.preventDefault();
       const keys = Object.keys(VIEWS);
       navigate(keys[Number(ev.key) - 1]);
