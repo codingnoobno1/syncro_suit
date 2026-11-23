@@ -13,11 +13,17 @@ build/
 coverage.xml
 htmlcov/
 
-# Node / TypeScript / Dashboard
+# Node / TypeScript / Dashboard / Electron Desktop
 node_modules/
 apps/dashboard/dist/
+apps/electron-desktop/dist/
+apps/electron-desktop/release/
+apps/electron-desktop/native/dist/
+apps/electron-desktop/build-assets/icon.png
+apps/electron-desktop/build-assets/icon.ico
 extensions/ts-policy-webhook/dist/
 *.tsbuildinfo
+dist-release/
 
 # Go
 extensions/go-drift-scanner/bin/

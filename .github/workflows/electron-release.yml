@@ -1,0 +1,136 @@
+name: Multi-Platform Electron & Backend Release Pipeline
+
+on:
+  push:
+    branches: [main, electron-frontend]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backend-cloud-cli-mcp:
+    name: Verify Control Plane & az/gcloud/aws CLI MCP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Lint, type-check, and test Python Control Plane + Cloud CLI MCP
+        working-directory: syncro-deployer/services/control-plane
+        run: |
+          uv venv .venv
+          uv pip install --python .venv/bin/python -e ".[dev]"
+          .venv/bin/ruff check src tests
+          .venv/bin/mypy src
+          .venv/bin/pytest -v
+      - name: Package Python Control Plane sdist & wheel (.tar.gz / .whl)
+        working-directory: syncro-deployer/services/control-plane
+        run: |
+          uv build --out-dir dist-release
+          sha256sum dist-release/* > dist-release/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syncro-control-plane-backend
+          path: syncro-deployer/services/control-plane/dist-release/*
+
+  package-linux:
+    name: Pack Linux (.AppImage, .deb, .rpm, .tar.gz, .so)
+    needs: backend-cloud-cli-mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Linux packaging dependencies (rpm / gcc)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc rpm
+      - name: Install Electron desktop dependencies
+        working-directory: syncro-deployer/apps/electron-desktop
+        run: npm install
+      - name: Build native libsyncro_native.so, test, and package Linux artifacts
+        working-directory: syncro-deployer/apps/electron-desktop
+        run: bash scripts/package-platform.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syncro-deployer-linux-x64
+          path: |
+            syncro-deployer/apps/electron-desktop/release/*.AppImage
+            syncro-deployer/apps/electron-desktop/release/*.deb
+            syncro-deployer/apps/electron-desktop/release/*.rpm
+            syncro-deployer/apps/electron-desktop/release/*.tar.gz
+            syncro-deployer/apps/electron-desktop/release/*.so
+            syncro-deployer/apps/electron-desktop/release/SHA256SUMS.txt
+
+  package-windows:
+    name: Pack Windows (.exe NSIS/Portable, .zip, .dll)
+    needs: backend-cloud-cli-mcp
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Electron desktop dependencies
+        working-directory: syncro-deployer/apps/electron-desktop
+        run: npm install
+      - name: Build syncro_native.dll, Vite renderer, and Windows .exe packages
+        working-directory: syncro-deployer/apps/electron-desktop
+        shell: pwsh
+        run: pwsh -File scripts/package-platform.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syncro-deployer-windows-x64
+          path: |
+            syncro-deployer/apps/electron-desktop/release/*.exe
+            syncro-deployer/apps/electron-desktop/release/*.zip
+            syncro-deployer/apps/electron-desktop/release/*.dll
+            syncro-deployer/apps/electron-desktop/release/SHA256SUMS.txt
+
+  package-macos:
+    name: Pack macOS (.dmg, .zip, .tar.gz, .dylib)
+    needs: backend-cloud-cli-mcp
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Electron desktop dependencies
+        working-directory: syncro-deployer/apps/electron-desktop
+        run: npm install
+      - name: Build libsyncro_native.dylib and macOS packages
+        working-directory: syncro-deployer/apps/electron-desktop
+        run: bash scripts/package-platform.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syncro-deployer-macos
+          path: |
+            syncro-deployer/apps/electron-desktop/release/*.dmg
+            syncro-deployer/apps/electron-desktop/release/*.zip
+            syncro-deployer/apps/electron-desktop/release/*.tar.gz
+            syncro-deployer/apps/electron-desktop/release/*.dylib
+            syncro-deployer/apps/electron-desktop/release/SHA256SUMS.txt
+
+  publish-github-release:
+    name: Publish Multi-Platform GitHub Release
+    needs: [package-linux, package-windows, package-macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - name: Create Release Checksums
+        working-directory: release-artifacts
+        run: |
+          rm -f SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
+          ls -lh
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release-artifacts/*

@@ -6,28 +6,34 @@ Unified multi-cloud developer & DevSecOps suite referencing **[project-syncroo.n
 
 | Module | Location / Integration | Status |
 | :--- | :--- | :--- |
-| **Syncro Deployer** | [`syncro-deployer/`](syncro-deployer/) — Multi-Cloud (AWS · GCP · Azure) Control Plane, Guardrailed MCP Ops Bot, SQLite WAL + Circuit Breakers + Auto-Rollback | Active |
-| **Syncro Desktop** | [`syncro-deployer/apps/syncro-desktop/`](syncro-deployer/apps/syncro-desktop/) — Cross-Platform Flutter Desktop Agent (**Agentic Mode** & **Manual DevOps Mode**) | Active |
-| **Syncro CLI** | [`syncro-deployer/services/control-plane/`](syncro-deployer/services/control-plane/) — `syncro` & `aegis` CLI entrypoints | Active |
-| **Syncro IDE** | MCP JSON-RPC 2.0 Server (**29 tools**, **13 resources**) over `stdio` & HTTP `/mcp` | Connected |
+| **Syncro Electron Desktop** | [`syncro-deployer/apps/electron-desktop/`](syncro-deployer/apps/electron-desktop/) — Cross-Platform Electron.js Desktop Workbench + Native `.so`/`.dll`/`.dylib` + Multi-Platform CI/CD (`.exe`, `.AppImage`, `.deb`, `.rpm`, `.tar.gz`, `.dmg`) | Active |
+| **Syncro Deployer** | [`syncro-deployer/`](syncro-deployer/) — Multi-Cloud (AWS · GCP · Azure) Control Plane, Guardrailed `az`/`gcloud`/`aws` CLI Wrapper MCP (**34 tools**, **15 resources**, **6 prompts**), SQLite WAL + Circuit Breakers + Auto-Rollback | Active |
+| **Syncro Desktop (Flutter)** | [`syncro-deployer/apps/syncro-desktop/`](syncro-deployer/apps/syncro-desktop/) — Cross-Platform Flutter Desktop Agent (**Agentic Mode** & **Manual DevOps Mode**) | Active |
+| **Syncro CLI** | [`syncro-deployer/services/control-plane/`](syncro-deployer/services/control-plane/) — `syncro` & `aegis` CLI entrypoints including `syncro cloud-cli` | Active |
+| **Syncro IDE** | MCP JSON-RPC 2.0 Server (**34 tools**, **15 resources**, **6 prompts**) over `stdio` & HTTP `/mcp` | Connected |
 | **Syncro DB** | SQLite WAL State Journal, Redis distributed locks & Kafka CloudEvents audit backbone | Active |
 | **Syncro Git** | [`syncro-deployer/extensions/ts-policy-webhook/`](syncro-deployer/extensions/ts-policy-webhook/) — GitOps PR admission webhook & ephemeral PR environments | Active |
 | **Syncro Tester** | Automated canary load, chaos & E2E verification gate (`pre_promote_test_gate` contract) | Planned |
 
-## Quick Start on Windows (`D:\syncro_suit`)
+## Quick Start (Electron Desktop + Control Plane)
 
-```powershell
-git clone https://github.com/codingnoobno1/syncro_suit.git D:\syncro_suit
-
-# 1. Start the Syncro Deployer Control Plane (Python 3.11+)
-cd D:\syncro_suit\syncro-deployer\services\control-plane
+```bash
+# 1. Start the hardened Syncro Control Plane + az/gcloud/aws CLI MCP Host (:8080)
+cd syncro-deployer/services/control-plane
 uv venv .venv
-uv pip install --python .venv\Scripts\python.exe -e ".[dev]"
-.venv\Scripts\syncro.exe server --host 127.0.0.1 --port 8080
+uv pip install --python .venv/bin/python -e ".[dev]"
+.venv/bin/syncro server --host 127.0.0.1 --port 8080
 
-# 2. Launch the Flutter Desktop Agent (in a second terminal)
-cd D:\syncro_suit\syncro-deployer\apps\syncro-desktop
-flutter create . --platforms=windows,macos,linux
-flutter pub get
-flutter run -d windows --dart-define=SYNCRO_API_URL=http://127.0.0.1:8080
+# 2. Launch the Electron.js Desktop Frontend (second terminal)
+cd syncro-deployer/apps/electron-desktop
+npm install
+npm run build
+npm start
 ```
+
+## Multi-Platform Packaging & CI/CD
+
+GitHub Actions ([`.github/workflows/electron-release.yml`](.github/workflows/electron-release.yml)) automatically tests the backend + Cloud CLI MCP wrappers and packages platform artifacts on pushes and `v*` tags:
+- **Windows (`x64`)**: NSIS `.exe`, Portable `.exe`, `.zip`, `syncro_native.dll`
+- **Linux (`x64`)**: `.AppImage`, `.deb`, `.rpm`, `.tar.gz`, `libsyncro_native.so`
+- **macOS (`x64` / `arm64`)**: `.dmg`, `.zip`, `.tar.gz`, `libsyncro_native.dylib`
