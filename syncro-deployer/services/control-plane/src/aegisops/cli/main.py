@@ -13,6 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from aegisops import __version__
+from aegisops.adapters.cloud.cli_wrapper import CliExecutionRequest, CliProvider
 from aegisops.adapters.docker.docker_launcher import DockerLaunchRequest
 from aegisops.application.container import build_platform
 from aegisops.bot.models import BotAutonomyMode
@@ -35,7 +36,7 @@ from aegisops.syncro.models import (
 
 app = typer.Typer(
     name="syncro",
-    help="Syncro Deployer / AegisOps — Multi-Cloud (AWS · GCP · Azure) DevSecOps CLI, Flutter Desktop Agent Backend & MCP Bot.",
+    help="Syncro Deployer / AegisOps — Multi-Cloud (AWS · GCP · Azure) DevSecOps CLI, Electron/Flutter Desktop Backend & MCP Bot.",
     no_args_is_help=True,
 )
 syncro_app = typer.Typer(help="Syncro Suite & Dual-Mode Deployer (Agentic Mode vs Manual DevOps Mode).")
@@ -43,6 +44,7 @@ project_app = typer.Typer(help="Manage multi-project polyglot registrations.")
 vm_app = typer.Typer(help="Intelligent Multi-Cloud VM Selector, Comparator & Ephemeral Provisioner.")
 bot_app = typer.Typer(help="Guardrailed MCP Ops Bot (Launch VMs/K8s/Docker, Read Bills & Statuses, Self-Prompt).")
 cloud_app = typer.Typer(help="Inspect AWS, GCP, Azure status, FinOps spend & Drift checks.")
+cloud_cli_app = typer.Typer(help="Guardrailed Azure (az), GCP (gcloud), and AWS (aws) CLI Wrapper.")
 infra_app = typer.Typer(help="Terraform & Ansible multi-cloud infrastructure operations.")
 k8s_app = typer.Typer(help="Launch and inspect OPA-hardened Kubernetes workloads (EKS/GKE/AKS).")
 destroy_app = typer.Typer(help="Quick Destruction blast-radius preview & kill-switch.")
@@ -55,6 +57,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(vm_app, name="vm")
 app.add_typer(bot_app, name="bot")
 app.add_typer(cloud_app, name="cloud")
+app.add_typer(cloud_cli_app, name="cloud-cli")
 app.add_typer(infra_app, name="infra")
 app.add_typer(k8s_app, name="k8s")
 app.add_typer(destroy_app, name="destroy")
@@ -509,3 +512,30 @@ def broker_health_cmd() -> None:
     """Display health for Kafka, RabbitMQ, Redis, and AWS/GCP/Azure adapters."""
     platform = build_platform()
     console.print_json(json.dumps(asyncio.run(platform.broker_health())))
+
+
+@cloud_cli_app.command("status")
+def cloud_cli_status() -> None:
+    """Inspect Azure (az), GCP (gcloud), and AWS (aws) CLI wrapper status and guardrails."""
+    platform = build_platform()
+    console.print_json(json.dumps(asyncio.run(platform.cloud_cli.toolchain_status())))
+
+
+@cloud_cli_app.command("exec")
+def cloud_cli_exec(
+    provider: Annotated[str, typer.Option("--provider", "-p", help="az, gcloud, or aws")] = "az",
+    args: Annotated[str, typer.Option("--args", "-a", help="Space-separated CLI args")] = "account show",
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+    allow_destructive: Annotated[bool, typer.Option("--allow-destructive")] = False,
+) -> None:
+    """Execute a guardrailed az, gcloud, or aws command through the Multi-Cloud CLI Wrapper."""
+    platform = build_platform()
+    req = CliExecutionRequest(
+        provider=CliProvider(provider.lower()),
+        args=args.split(),
+        dry_run=dry_run,
+        allow_destructive=allow_destructive,
+        actor="syncro-cli",
+    )
+    res = asyncio.run(platform.cloud_cli.execute(req))
+    console.print_json(res.model_dump_json())

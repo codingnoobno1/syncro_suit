@@ -1,0 +1,30 @@
+{
+  "name": "syncro-electron-desktop",
+  "productName": "Syncro Deployer",
+  "version": "0.2.0",
+  "description": "Syncro Deployer — Multi-Cloud DevSecOps Electron.js Desktop Workbench (AWS · GCP · Azure CLI MCP, Dual-Mode Deployer, VM FinOps & Guardrailed Ops Bot)",
+  "author": "Syncro Suite Team",
+  "license": "Apache-2.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite --config vite.config.mjs --host 0.0.0.0 --port 5175",
+    "dev": "concurrently -k \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5175 && electron .\"",
+    "build:icons": "node build-assets/generate-icons.mjs",
+    "build:native": "bash native/build-native.sh",
+    "build:renderer": "vite build --config vite.config.mjs",
+    "build": "npm run build:icons && npm run build:renderer",
+    "start": "electron .",
+    "pack:dir": "npm run build && electron-builder --dir",
+    "pack:win": "npm run build && electron-builder --win nsis portable zip",
+    "pack:linux": "npm run build && npm run build:native && electron-builder --linux AppImage tar.gz deb rpm",
+    "pack:mac": "npm run build && npm run build:native && electron-builder --mac dmg zip",
+    "test": "node --test tests/electron-smoke.test.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.7",
+    "wait-on": "^8.0.2"
+  }
+}

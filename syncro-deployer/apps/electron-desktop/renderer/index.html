@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Syncro Deployer — Multi-Cloud DevSecOps &amp; Cloud CLI MCP Workbench</title>
+    <meta
+      name="description"
+      content="Syncro Deployer Electron desktop workbench uniting guardrailed Azure (az), GCP (gcloud), and AWS (aws) CLI MCP wrappers, dual-mode deployments, VM FinOps, and DevSecOps security gates."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./src/styles/app.css" />
+  </head>
+  <body>
+    <div id="app" class="desktop-frame">
+      <!-- Frameless Electron Titlebar / Top Command Chrome -->
+      <header class="titlebar" id="desktop-titlebar">
+        <div class="titlebar-left">
+          <div class="brand-lockup">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+              <polygon points="16,3 27,9.5 27,22.5 16,29 5,22.5 5,9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+              <polygon points="16,8 22.5,11.8 22.5,20.2 16,24 9.5,20.2 9.5,11.8" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.2" />
+              <circle cx="16" cy="16" r="2.6" fill="currentColor" />
+            </svg>
+            <div class="brand-copy">
+              <span class="brand-name">Syncro Deployer</span>
+              <span class="brand-version" id="runtime-badge">Electron · v0.2.0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="titlebar-center">
+          <button
+            type="button"
+            class="cmd-trigger"
+            id="btn-open-palette"
+            aria-label="Open quick command palette"
+          >
+            <span class="cmd-trigger-text">Jump to view, Cloud CLI preset, or MCP tool...</span>
+            <kbd class="kbd-hint">Ctrl K</kbd>
+          </button>
+        </div>
+
+        <div class="titlebar-right">
+          <div class="mode-switch" role="group" aria-label="Deployment execution mode">
+            <button type="button" class="mode-btn active" id="mode-btn-agentic" data-mode="agentic">
+              Agentic
+            </button>
+            <button type="button" class="mode-btn" id="mode-btn-manual" data-mode="manual">
+              Manual
+            </button>
+          </div>
+
+          <div class="conn-indicator" id="conn-indicator" title="Control Plane &amp; WebSocket status">
+            <span class="conn-dot" id="conn-dot"></span>
+            <span id="conn-label">Connecting</span>
+          </div>
+
+          <div class="win-controls" id="win-controls" aria-label="Window controls">
+            <button type="button" class="win-btn" id="win-min" title="Minimize" aria-label="Minimize window">&#8722;</button>
+            <button type="button" class="win-btn" id="win-max" title="Maximize" aria-label="Maximize window">&#9723;</button>
+            <button type="button" class="win-btn win-btn-close" id="win-close" title="Close" aria-label="Close window">&#10005;</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Workspace Body -->
+      <div class="workspace-shell">
+        <aside class="nav-rail" aria-label="Primary workbench navigation">
+          <nav class="nav-groups">
+            <div class="nav-group">
+              <span class="nav-group-label">Control Plane</span>
+              <button type="button" class="nav-item active" id="nav-overview" data-view="overview">
+                <span class="nav-code">01</span>
+                <span class="nav-label">Command Overview</span>
+              </button>
+              <button type="button" class="nav-item" id="nav-cloud-cli" data-view="cloud-cli">
+                <span class="nav-code">02</span>
+                <span class="nav-label">Cloud CLI Studio</span>
+                <span class="nav-tag">az·gcp·aws</span>
+              </button>
+              <button type="button" class="nav-item" id="nav-mcp" data-view="mcp">
+                <span class="nav-code">03</span>
+                <span class="nav-label">MCP Tool Console</span>
+                <span class="nav-tag" id="nav-mcp-count">34</span>
+              </button>
+            </div>
+
+            <div class="nav-group">
+              <span class="nav-group-label">Delivery &amp; Fleet</span>
+              <button type="button" class="nav-item" id="nav-deployer" data-view="deployer">
+                <span class="nav-code">04</span>
+                <span class="nav-label">Syncro Deployer</span>
+              </button>
+              <button type="button" class="nav-item" id="nav-vm-finops" data-view="vm-finops">
+                <span class="nav-code">05</span>
+                <span class="nav-label">VM &amp; FinOps Matrix</span>
+              </button>
+            </div>
+
+            <div class="nav-group">
+              <span class="nav-group-label">Security &amp; Autonomy</span>
+              <button type="button" class="nav-item" id="nav-security" data-view="security">
+                <span class="nav-code">06</span>
+                <span class="nav-label">DevSecOps &amp; Destroy</span>
+              </button>
+              <button type="button" class="nav-item" id="nav-bot" data-view="bot">
+                <span class="nav-code">07</span>
+                <span class="nav-label">Guardrailed Ops Bot</span>
+              </button>
+            </div>
+          </nav>
+
+          <section class="rail-footer" aria-label="Cloud CLI and native runtime posture">
+            <div class="rail-footer-title">Cloud CLI Wrappers</div>
+            <div class="cli-pill-row" id="rail-cli-badges">
+              <span class="cli-badge" data-cli="az">az</span>
+              <span class="cli-badge" data-cli="gcloud">gcloud</span>
+              <span class="cli-badge" data-cli="aws">aws</span>
+            </div>
+            <div class="rail-meta" id="rail-native-meta">
+              MCP Host · Tri-Broker Active
+            </div>
+          </section>
+        </aside>
+
+        <div class="main-column">
+          <main class="view-stage" id="view-stage" tabindex="-1">
+            <!-- Dynamically rendered view -->
+          </main>
+
+          <!-- Collapsible Live Telemetry Drawer -->
+          <section class="telemetry-drawer" id="telemetry-drawer" aria-label="Live telemetry stream">
+            <div class="drawer-header" id="drawer-toggle" role="button" tabindex="0">
+              <div class="drawer-header-left">
+                <span class="drawer-title">Live Event Stream</span>
+                <span class="drawer-sub" id="drawer-ws-status">WS standby</span>
+                <span class="drawer-count" id="drawer-event-count">0 events</span>
+              </div>
+              <div class="drawer-header-actions">
+                <button type="button" class="btn-ghost btn-xs" id="btn-clear-stream">Clear</button>
+                <span class="drawer-chevron" id="drawer-chevron">&#9662;</span>
+              </div>
+            </div>
+            <div class="drawer-body" id="drawer-stream-list"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Command Palette Modal -->
+    <div class="palette-backdrop hidden" id="palette-backdrop" role="dialog" aria-modal="true" aria-label="Quick command palette">
+      <div class="palette-dialog">
+        <div class="palette-input-row">
+          <input
+            type="text"
+            id="palette-input"
+            class="palette-input"
+            placeholder="Type a view, Cloud CLI command (az / gcloud / aws), or MCP tool..."
+            autocomplete="off"
+          />
+          <kbd class="kbd-hint">ESC</kbd>
+        </div>
+        <div class="palette-results" id="palette-results"></div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -7,6 +7,7 @@ import json
 import sys
 from typing import Any
 
+from aegisops.adapters.cloud.cli_wrapper import CliExecutionRequest, CliProvider
 from aegisops.adapters.docker.docker_launcher import DockerLaunchRequest
 from aegisops.application.container import build_platform
 from aegisops.application.platform_service import PlatformService
@@ -341,12 +342,91 @@ class AegisMcpServer:
                     },
                 },
             },
+            {
+                "name": "aegis_az_cli",
+                "description": "Guardrailed Azure CLI (`az`) MCP wrapper enforcing zero-shell execution, allowlisted namespaces, destructive/production locks, and secret redaction.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["args"],
+                    "properties": {
+                        "args": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Azure CLI subcommand tokens, e.g. ['vm', 'list'] or ['account', 'show'].",
+                        },
+                        "dry_run": {"type": "boolean", "default": False},
+                        "allow_destructive": {"type": "boolean", "default": False},
+                        "allow_secrets": {"type": "boolean", "default": False},
+                        "timeout_seconds": {"type": "integer", "default": 30},
+                        "subscription": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_gcp_cli",
+                "description": "Guardrailed Google Cloud CLI (`gcloud`) MCP wrapper enforcing zero-shell execution, allowlisted namespaces, lien/production locks, and secret redaction.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["args"],
+                    "properties": {
+                        "args": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "gcloud subcommand tokens, e.g. ['compute', 'instances', 'list'] or ['config', 'list'].",
+                        },
+                        "dry_run": {"type": "boolean", "default": False},
+                        "allow_destructive": {"type": "boolean", "default": False},
+                        "allow_secrets": {"type": "boolean", "default": False},
+                        "timeout_seconds": {"type": "integer", "default": 30},
+                        "project": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_aws_cli",
+                "description": "Guardrailed AWS CLI (`aws`) MCP wrapper enforcing zero-shell execution, allowlisted namespaces, destructive/production locks, and secret redaction.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["args"],
+                    "properties": {
+                        "args": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "AWS CLI subcommand tokens, e.g. ['sts', 'get-caller-identity'] or ['ec2', 'describe-instances'].",
+                        },
+                        "dry_run": {"type": "boolean", "default": False},
+                        "allow_destructive": {"type": "boolean", "default": False},
+                        "allow_secrets": {"type": "boolean", "default": False},
+                        "timeout_seconds": {"type": "integer", "default": 30},
+                        "profile": {"type": "string"},
+                        "region": {"type": "string"},
+                    },
+                },
+            },
+            {
+                "name": "aegis_cloud_cli_status",
+                "description": "Inspect installed az, gcloud, aws, and DevOps CLI binaries, active execution modes, and CLI guardrail rules.",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "aegis_cloud_cli_history",
+                "description": "Retrieve audited execution history for Azure (`az`), GCP (`gcloud`), and AWS (`aws`) CLI invocations.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "provider": {"type": "string", "enum": ["az", "gcloud", "aws"]},
+                        "limit": {"type": "integer", "default": 25},
+                    },
+                },
+            },
         ]
 
     def list_resources(self) -> list[dict[str, Any]]:
         return [
             {"uri": "aegis://syncro/suite", "name": "Syncro Suite 7-Module Topology", "mimeType": "application/json"},
             {"uri": "aegis://syncro/deployments", "name": "Syncro Deployer Persistent Timeline", "mimeType": "application/json"},
+            {"uri": "aegis://cli/status", "name": "Multi-Cloud CLI Toolchain Status (az/gcloud/aws)", "mimeType": "application/json"},
+            {"uri": "aegis://cli/history", "name": "Multi-Cloud CLI Audited Execution Trail", "mimeType": "application/json"},
             {"uri": "aegis://projects", "name": "Registered Projects", "mimeType": "application/json"},
             {"uri": "aegis://environments", "name": "Multi-Cloud Environments (AWS/GCP/Azure)", "mimeType": "application/json"},
             {"uri": "aegis://vms/catalog", "name": "Multi-Cloud VM SKU Catalog", "mimeType": "application/json"},
@@ -366,6 +446,11 @@ class AegisMcpServer:
                 "name": "devsecops_preflight_audit",
                 "description": "Run a full multi-cloud pre-deployment DevSecOps audit (Checkov, Trivy, Bandit, tfsec, OPA).",
                 "arguments": [{"name": "project_id", "required": True}],
+            },
+            {
+                "name": "multicloud_cli_diagnostics",
+                "description": "Inspect live AWS (`aws`), GCP (`gcloud`), and Azure (`az`) accounts, compute fleets, and deletion locks through MCP CLI wrappers.",
+                "arguments": [{"name": "focus", "required": False}],
             },
             {
                 "name": "multicloud_vm_selection",
@@ -584,6 +669,35 @@ class AegisMcpServer:
                     actor="mcp-client",
                 )
             ).model_dump(mode="json")
+        elif name in {"aegis_az_cli", "aegis_gcp_cli", "aegis_aws_cli"}:
+            provider_map = {
+                "aegis_az_cli": CliProvider.AZ,
+                "aegis_gcp_cli": CliProvider.GCLOUD,
+                "aegis_aws_cli": CliProvider.AWS,
+            }
+            sub_or_proj = args.get("subscription") or args.get("project") or args.get("profile")
+            cli_req = CliExecutionRequest(
+                provider=provider_map[name],
+                args=[str(item) for item in (args.get("args") or [])],
+                dry_run=bool(args.get("dry_run", False)),
+                allow_destructive=bool(args.get("allow_destructive", False)),
+                allow_secrets=bool(args.get("allow_secrets", False)),
+                timeout_seconds=int(args.get("timeout_seconds", 30)),
+                subscription_or_project=str(sub_or_proj) if sub_or_proj else None,
+                region=str(args["region"]) if args.get("region") else None,
+                actor="mcp-client",
+            )
+            payload = (await self._platform.cloud_cli.execute(cli_req)).model_dump(mode="json")
+        elif name == "aegis_cloud_cli_status":
+            payload = await self._platform.cloud_cli.toolchain_status()
+        elif name == "aegis_cloud_cli_history":
+            prov_arg = args.get("provider")
+            prov = CliProvider(str(prov_arg).lower()) if prov_arg else None
+            limit = int(args.get("limit", 25))
+            payload = [
+                item.model_dump(mode="json")
+                for item in self._platform.cloud_cli.history(provider=prov, limit=limit)
+            ]
         else:
             raise ValueError(f"Unknown MCP tool: {name}")
 
@@ -598,6 +712,10 @@ class AegisMcpServer:
             data = [m.model_dump(mode="json") for m in self._platform.syncro.suite_modules()]
         elif uri == "aegis://syncro/deployments":
             data = [d.model_dump(mode="json") for d in self._platform.syncro.list_deployments()]
+        elif uri == "aegis://cli/status":
+            data = await self._platform.cloud_cli.toolchain_status()
+        elif uri == "aegis://cli/history":
+            data = [item.model_dump(mode="json") for item in self._platform.cloud_cli.history(limit=40)]
         elif uri == "aegis://projects":
             data = [p.model_dump(mode="json") for p in self._platform.projects.values()]
         elif uri == "aegis://environments":
@@ -645,6 +763,11 @@ class AegisMcpServer:
             "devsecops_preflight_audit": (
                 f"Run `aegis_security_scan` for project '{args.get('project_id', 'payments-core')}', "
                 "inspect AWS/GCP/Azure OPA violations, and list prioritized remediation actions."
+            ),
+            "multicloud_cli_diagnostics": (
+                f"Inspect multi-cloud posture ({args.get('focus', 'compute, locks, and billing')}) by calling "
+                "`aegis_cloud_cli_status`, `aegis_az_cli` (['vm', 'list']), `aegis_gcp_cli` "
+                "(['compute', 'instances', 'list']), and `aegis_aws_cli` (['ec2', 'describe-instances'])."
             ),
             "multicloud_vm_selection": (
                 f"Call `aegis_vm_compare_clouds` with min_vcpu={args.get('min_vcpu', 4)} and "

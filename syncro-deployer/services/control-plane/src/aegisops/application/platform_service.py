@@ -6,6 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+from aegisops.adapters.cloud.cli_wrapper import MultiCloudCliWrapper
 from aegisops.adapters.cloud.cloud_registry import MultiCloudRegistry
 from aegisops.adapters.docker.docker_launcher import DockerLauncherAdapter
 from aegisops.adapters.iac.ansible_runner import AnsibleRunner
@@ -108,6 +109,7 @@ class PlatformService:
             opa_gate=opa_gate,
         )
 
+        self.cloud_cli = MultiCloudCliWrapper(settings=settings, kafka=kafka, redis=redis)
         self.bot = AegisMcpBotService(platform=self, docker=self.docker)
         self.syncro = SyncroDeployerService(platform=self, journal=self.journal)
 

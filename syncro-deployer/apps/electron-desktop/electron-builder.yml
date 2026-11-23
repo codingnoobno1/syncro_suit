@@ -1,0 +1,84 @@
+appId: io.syncrosuite.deployer
+productName: Syncro Deployer
+copyright: Copyright © 2026 Syncro Suite
+artifactName: "${name}-${version}-${os}-${arch}.${ext}"
+
+directories:
+  output: release
+  buildResources: build-assets
+
+files:
+  - electron/**/*
+  - dist/**/*
+  - package.json
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/*.map"
+
+extraResources:
+  - from: native/dist
+    to: native
+    filter:
+      - "*.so"
+      - "*.dll"
+      - "*.dylib"
+  - from: ../../configs/mcp
+    to: mcp
+    filter:
+      - "*.json"
+
+asar: true
+
+win:
+  icon: build-assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Syncro Deployer
+
+linux:
+  icon: build-assets/icon.png
+  category: Development
+  maintainer: Syncro Suite <ops@syncrosuite.io>
+  vendor: Syncro Suite
+  synopsis: Multi-Cloud DevSecOps Control Plane & Cloud CLI MCP Workbench
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+
+mac:
+  icon: build-assets/icon.png
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64

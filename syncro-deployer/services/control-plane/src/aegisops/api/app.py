@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+import time
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from aegisops import __version__
+from aegisops.adapters.cloud.cli_wrapper import CliExecutionRequest, CliProvider
 from aegisops.adapters.docker.docker_launcher import DockerLaunchRequest
 from aegisops.application.container import build_platform
 from aegisops.application.platform_service import PlatformService
@@ -85,12 +88,24 @@ class ExtensionHookBody(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class CloudCliProviderBody(BaseModel):
+    args: list[str] = Field(min_length=1, max_length=64)
+    dry_run: bool = False
+    allow_destructive: bool = False
+    allow_secrets: bool = False
+    timeout_seconds: int = Field(default=30, ge=1, le=120)
+    subscription_or_project: str | None = None
+    region: str | None = None
+    actor: str = "electron-desktop"
+
+
 def create_app(
     settings: Settings | None = None,
     platform: PlatformService | None = None,
 ) -> FastAPI:
     svc = platform or build_platform(settings=settings, seed_demo=True)
     mcp_server = AegisMcpServer(svc)
+    boot_monotonic = time.monotonic()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -103,12 +118,12 @@ def create_app(
         await svc.kafka.stop()
 
     app = FastAPI(
-        title="AegisOps Multi-Cloud DevSecOps Control Plane (AWS · GCP · Azure)",
+        title="AegisOps / Syncro Multi-Cloud DevSecOps Control Plane (AWS · GCP · Azure)",
         version=__version__,
         description=(
-            "Polyglot-extensible Multi-Cloud DevSecOps Control Plane with Intelligent VM Selector, "
-            "MCP Host, Tri-Broker Fabric (Kafka + RabbitMQ + Redis), Security Pipeline, Quick Destruction, "
-            "FinOps Analytics, and Least-Privilege IAM/PowerShell Planning."
+            "Polyglot-extensible Multi-Cloud DevSecOps Control Plane with Guardrailed Azure/GCP/AWS "
+            "CLI Wrapper MCP, Intelligent VM Selector, Tri-Broker Fabric (Kafka + RabbitMQ + Redis), "
+            "Security Pipeline, Quick Destruction, FinOps Analytics, and Least-Privilege IAM/PowerShell Planning."
         ),
         lifespan=lifespan,
     )
@@ -122,13 +137,59 @@ def create_app(
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def observability_and_security_headers(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        req_id = request.headers.get("X-Request-Id") or f"req-{uuid.uuid4().hex[:12]}"
+        t0 = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        response.headers["X-Request-Id"] = req_id
+        response.headers["X-Response-Time-Ms"] = str(elapsed_ms)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_server_error", "detail": str(exc)},
+        )
+
     @app.get("/api/v1/health")
     async def health() -> dict[str, Any]:
+        cli_status = await svc.cloud_cli.toolchain_status()
         return {
             "status": "ok",
             "version": __version__,
             "mode": svc.settings.mode,
+            "uptime_seconds": round(time.monotonic() - boot_monotonic, 2),
             "clouds": ["aws", "gcp", "azure"],
+            "cloud_clis": {
+                k: {
+                    "installed": v["installed"],
+                    "execution_mode": v["execution_mode"],
+                    "mcp_tool": v["mcp_tool"],
+                }
+                for k, v in cli_status["cloud_clis"].items()
+            },
+            "mcp_tools_count": len(mcp_server.list_tools()),
+        }
+
+    @app.get("/api/v1/health/live")
+    async def health_live() -> dict[str, str]:
+        return {"status": "alive"}
+
+    @app.get("/api/v1/health/ready")
+    async def health_ready() -> dict[str, Any]:
+        brokers = await svc.broker_health()
+        return {
+            "status": "ready",
+            "brokers": brokers,
+            "journal": svc.syncro.resilience_health()["journal"],
         }
 
     @app.get("/api/v1/overview")
@@ -505,6 +566,50 @@ def create_app(
         jobs = await svc.rabbitmq.list_jobs(queue=queue, limit=limit)
         return [j.model_dump(mode="json") for j in jobs]
 
+    # =========================================================================
+    # Multi-Cloud CLI Wrappers (Azure `az`, GCP `gcloud`, AWS `aws`)
+    # =========================================================================
+    @app.get("/api/v1/cli/status")
+    async def cli_toolchain_status() -> dict[str, Any]:
+        return await svc.cloud_cli.toolchain_status()
+
+    @app.get("/api/v1/cli/presets")
+    async def cli_presets(provider: CliProvider | None = None) -> list[dict[str, Any]]:
+        presets = svc.cloud_cli.list_presets()
+        if provider is not None:
+            presets = [p for p in presets if p.provider == provider]
+        return [p.model_dump(mode="json") for p in presets]
+
+    @app.get("/api/v1/cli/history")
+    async def cli_history(provider: CliProvider | None = None, limit: int = 40) -> list[dict[str, Any]]:
+        return [item.model_dump(mode="json") for item in svc.cloud_cli.history(provider=provider, limit=limit)]
+
+    @app.post("/api/v1/cli/exec")
+    async def cli_exec(req: CliExecutionRequest) -> dict[str, Any]:
+        result = await svc.cloud_cli.execute(req)
+        return result.model_dump(mode="json")
+
+    @app.post("/api/v1/cli/az")
+    async def cli_exec_az(body: CloudCliProviderBody) -> dict[str, Any]:
+        result = await svc.cloud_cli.execute(
+            CliExecutionRequest(provider=CliProvider.AZ, **body.model_dump())
+        )
+        return result.model_dump(mode="json")
+
+    @app.post("/api/v1/cli/gcp")
+    async def cli_exec_gcp(body: CloudCliProviderBody) -> dict[str, Any]:
+        result = await svc.cloud_cli.execute(
+            CliExecutionRequest(provider=CliProvider.GCLOUD, **body.model_dump())
+        )
+        return result.model_dump(mode="json")
+
+    @app.post("/api/v1/cli/aws")
+    async def cli_exec_aws(body: CloudCliProviderBody) -> dict[str, Any]:
+        result = await svc.cloud_cli.execute(
+            CliExecutionRequest(provider=CliProvider.AWS, **body.model_dump())
+        )
+        return result.model_dump(mode="json")
+
     @app.post("/mcp")
     async def mcp_http_endpoint(payload: dict[str, Any]) -> dict[str, Any]:
         return await mcp_server.handle_jsonrpc(payload)
@@ -515,6 +620,7 @@ def create_app(
         rmq_h = await svc.rabbitmq.health()
         redis_h = await svc.redis.health()
         finops = svc.finops_summary()
+        cli_count = len(svc.cloud_cli.history(limit=200))
         return "\n".join(
             [
                 "# HELP aegisops_projects_total Registered projects in control plane",
@@ -532,6 +638,9 @@ def create_app(
                 "# HELP aegisops_redis_pubsub_total Redis Pub/Sub events fanned out",
                 "# TYPE aegisops_redis_pubsub_total counter",
                 f"aegisops_redis_pubsub_total {redis_h['pubsub_messages_published']}",
+                "# HELP aegisops_cloud_cli_executions_total Guardrailed az/gcloud/aws CLI executions",
+                "# TYPE aegisops_cloud_cli_executions_total counter",
+                f"aegisops_cloud_cli_executions_total {cli_count}",
                 "",
             ]
         )
